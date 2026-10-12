@@ -32,6 +32,16 @@ class ApiDocController extends Controller
                         ],
                         'description' => 'Returns all frames of the given category, ordered by frame_index, split into parallel "frame" and "thumbnail" URL arrays.',
                     ],
+                    [
+                        'no'          => 3,
+                        'title'       => 'Get Monthly Frames (Milestone)',
+                        'method'      => 'POST',
+                        'url'         => $base . '/api/v1/getMonthlyFrameByCategoryId',
+                        'params'      => [
+                            ['name' => 'category_id', 'required' => true],
+                        ],
+                        'description' => 'Milestone frames for one gender (category_id = 1 Boy Month Collection, 2 Girl Month Collection), grouped month-wise with parallel "frame" and "thumbnail" arrays per month.',
+                    ],
                 ],
             ],
         ];

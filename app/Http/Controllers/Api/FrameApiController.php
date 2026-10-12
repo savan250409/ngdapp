@@ -38,11 +38,12 @@ class FrameApiController extends Controller
             ->groupBy('category_id');
 
         $categories->transform(function ($category) use ($frameRecords) {
-            $encoded = str_replace(' ', '%20', $category->category_name);
+            $encoded = $category->category_name;
             $path    = $category->category_image
                 ? "frame/{$encoded}/category_thumbnail_frame/{$category->category_image}"
                 : null;
-            $category->category_thumbnail_image_full_url = $path ? url('/') . '/upload/' . $path : null;
+            // Encode every space in the final URL as %20.
+            $category->category_thumbnail_image_full_url = $path ? str_replace(' ', '%20', url('/') . '/upload/' . $path) : null;
             unset($category->category_image, $category->sort_order);
 
             $allFrames = [];
@@ -51,8 +52,8 @@ class FrameApiController extends Controller
                     $thumb = $f['thumbnail_path'] ?? null;
                     $allFrames[] = [
                         'sort'               => $f['frame_index'] ?? 0,
-                        'frame_full_url'     => url('/') . '/upload/' . "frame/{$encoded}/frame/" . basename($f['image_path']),
-                        'thumbnail_full_url' => $thumb ? url('/') . '/upload/' . "frame/{$encoded}/frame_thumbnail/" . basename($thumb) : null,
+                        'frame_full_url'     => str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame/" . basename($f['image_path'])),
+                        'thumbnail_full_url' => $thumb ? str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame_thumbnail/" . basename($thumb)) : null,
                     ];
                 }
             }
@@ -108,15 +109,16 @@ class FrameApiController extends Controller
             ], 403);
         }
 
-        $encoded   = str_replace(' ', '%20', $category->category_name);
+        $encoded   = $category->category_name;
         $allFrames = [];
         foreach (Frame::where('category_id', $request->category_id)->get() as $record) {
             foreach ($record->frames ?? [] as $f) {
                 $thumb = $f['thumbnail_path'] ?? null;
                 $allFrames[] = [
                     'sort'               => $f['frame_index'] ?? 0,
-                    'frame_full_url'     => url('/') . '/upload/' . "frame/{$encoded}/frame/" . basename($f['image_path']),
-                    'thumbnail_full_url' => $thumb ? url('/') . '/upload/' . "frame/{$encoded}/frame_thumbnail/" . basename($thumb) : null,
+                    // Encode every space in the final URL as %20.
+                    'frame_full_url'     => str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame/" . basename($f['image_path'])),
+                    'thumbnail_full_url' => $thumb ? str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame_thumbnail/" . basename($thumb)) : null,
                 ];
             }
         }

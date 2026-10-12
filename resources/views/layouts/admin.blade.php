@@ -225,6 +225,9 @@
             <a class="nav-link {{ request()->routeIs('frames.*') ? 'active' : '' }}" href="{{ route('frames.index') }}" title="Frames">
                 <i class="bi bi-images"></i> <span class="label">Frames</span>
             </a>
+            <a class="nav-link {{ request()->routeIs('milestone-frames.*') ? 'active' : '' }}" href="{{ route('milestone-frames.index') }}" title="Milestone Frames">
+                <i class="bi bi-calendar-heart"></i> <span class="label">Milestone Frames</span>
+            </a>
             <span class="nav-section">API</span>
             <a class="nav-link {{ request()->routeIs('api-docs') ? 'active' : '' }}" href="{{ route('api-docs') }}" title="API URL">
                 <i class="bi bi-braces"></i> <span class="label">API URL</span>

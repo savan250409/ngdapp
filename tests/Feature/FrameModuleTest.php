@@ -298,6 +298,47 @@ class FrameModuleTest extends TestCase
         $this->assertStringContainsString('/b.webp', $urls[2]);
     }
 
+    public function test_api_urls_encode_spaces_as_percent20(): void
+    {
+        $cat = FrameCategory::create([
+            'category_name'  => 'Happy New Year',
+            'category_image' => 'cat thumb.webp',
+            'status'         => 1,
+        ]);
+        Frame::create(['category_id' => $cat->id, 'frames' => [
+            ['image_path' => 'frame one.webp', 'frame_index' => 0, 'thumbnail_path' => 'thumb one.webp'],
+        ]]);
+
+        // getFrameCategories
+        $list = $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $list->assertStatus(200);
+        $catThumb = $list->json('data.0.category_thumbnail_image_full_url');
+        $frameUrl = $list->json('data.0.frames.0.frame_full_url');
+        $thumbUrl = $list->json('data.0.frames.0.thumbnail_full_url');
+
+        foreach ([$catThumb, $frameUrl, $thumbUrl] as $url) {
+            $this->assertStringNotContainsString(' ', $url);
+        }
+        $this->assertStringContainsString('Happy%20New%20Year', $catThumb);
+        $this->assertStringContainsString('cat%20thumb.webp', $catThumb);
+        $this->assertStringContainsString('frame%20one.webp', $frameUrl);
+        $this->assertStringContainsString('thumb%20one.webp', $thumbUrl);
+
+        // getFramesByCategoryId
+        $byId = $this->postJson('/api/v1/getFramesByCategoryId',
+            ['category_id' => $cat->id],
+            ['Authorization' => 'Bearer ' . $this->token]
+        );
+        $byId->assertStatus(200);
+        $f = $byId->json('data.frame.0');
+        $t = $byId->json('data.thumbnail.0');
+        $this->assertStringNotContainsString(' ', $f);
+        $this->assertStringNotContainsString(' ', $t);
+        $this->assertStringContainsString('Happy%20New%20Year', $f);
+        $this->assertStringContainsString('frame%20one.webp', $f);
+        $this->assertStringContainsString('thumb%20one.webp', $t);
+    }
+
     public function test_api_excludes_active_categories_without_frames(): void
     {
         $withFrames = FrameCategory::create(['category_name' => 'Has ' . uniqid(), 'status' => 1]);

@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FrameCategoryController;
 use App\Http\Controllers\FrameController;
+use App\Http\Controllers\MilestoneFrameController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -48,6 +49,18 @@ Route::middleware('auth')->group(function () {
         Route::get('/{id}/edit', [FrameController::class, 'edit'])->name('edit');
         Route::put('/{id}', [FrameController::class, 'update'])->name('update');
         Route::delete('/{id}', [FrameController::class, 'destroy'])->name('destroy');
+    });
+
+    // Milestone Frames (gender + month)
+    Route::prefix('milestone-frames')->name('milestone-frames.')->group(function () {
+        Route::get('/', [MilestoneFrameController::class, 'index'])->name('index');
+        Route::get('/create', [MilestoneFrameController::class, 'create'])->name('create');
+        Route::post('/', [MilestoneFrameController::class, 'store'])->name('store');
+        Route::post('/order', [MilestoneFrameController::class, 'updateOrder'])->name('order');
+        Route::get('/{id}/frames', [MilestoneFrameController::class, 'recordFrames'])->name('frames');
+        Route::get('/{id}/edit', [MilestoneFrameController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [MilestoneFrameController::class, 'update'])->name('update');
+        Route::delete('/{id}', [MilestoneFrameController::class, 'destroy'])->name('destroy');
     });
 
     // API documentation
