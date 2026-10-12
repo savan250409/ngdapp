@@ -78,15 +78,11 @@ class FrameController extends Controller
         $order          = $this->decodeOrder($request->input('frame_order'));
         $keepImagePaths = $request->input('keep_image_paths', []);
         $keepThumbPaths = $request->input('keep_thumbnail_paths', []);
-        $keepCounts     = $request->input('keep_counts', []);
-        $keepIsPros     = $request->input('keep_is_pros', []);
         $keepImages     = $request->file('keep_images', []);
         $keepThumbs     = $request->file('keep_thumbnails', []);
 
         $newImages = $request->file('new_images', []);
         $newThumbs = $request->file('new_thumbnails', []);
-        $newCounts = $request->input('new_counts', []);
-        $newIsPros = $request->input('new_is_pros', []);
 
         $frames = [];
         $i = 0;
@@ -122,8 +118,6 @@ class FrameController extends Controller
                     'image_path'     => $imagePath,
                     'frame_index'    => $i,
                     'thumbnail_path' => ! empty($thumbPath) ? $thumbPath : null,
-                    'count'          => (int) ($keepCounts[$key] ?? 0),
-                    'is_pro'         => ! empty($keepIsPros[$key]),
                 ];
                 $i++;
 
@@ -136,8 +130,6 @@ class FrameController extends Controller
                     'image_path'     => $imageName,
                     'frame_index'    => $i,
                     'thumbnail_path' => $thumbName,
-                    'count'          => (int) ($newCounts[$key] ?? 0),
-                    'is_pro'         => ! empty($newIsPros[$key]),
                 ];
                 $i++;
             }
@@ -320,8 +312,6 @@ class FrameController extends Controller
                     'frame_url'     => $frameUrl,
                     'thumbnail_url' => $thumbUrl,
                     'thumb_url'     => $thumbUrl ?: $frameUrl, // display helper (thumb, else full)
-                    'is_pro'        => ! empty($f['is_pro']),
-                    'count'         => (int) ($f['count'] ?? 0),
                 ];
             });
 

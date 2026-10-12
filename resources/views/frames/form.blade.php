@@ -80,29 +80,18 @@
                                 <input type="hidden" name="keep_image_paths[e{{ $k }}]" value="{{ $f['image_path'] }}">
                                 <input type="hidden" name="keep_thumbnail_paths[e{{ $k }}]" value="{{ $f['thumbnail_path'] ?? '' }}">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label small text-muted">Frame image (.webp)</label>
                                 <div class="d-flex align-items-center gap-2">
                                     <img src="{{ $frameImgUrl($frame->category->category_name, $f, 'frame') }}" class="preview-frame thumb-preview" style="width:46px;height:46px;flex:0 0 auto" alt="" loading="lazy" decoding="async">
                                     <input type="file" name="keep_images[e{{ $k }}]" class="form-control form-control-sm input-frame" accept="image/webp">
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <label class="form-label small text-muted">Thumbnail (.webp)</label>
                                 <div class="d-flex align-items-center gap-2">
                                     <img src="{{ !empty($f['thumbnail_path']) ? $frameImgUrl($frame->category->category_name, $f, 'thumb') : '' }}" class="preview-thumb thumb-preview {{ !empty($f['thumbnail_path']) ? '' : 'd-none' }}" style="width:46px;height:46px;flex:0 0 auto" alt="" loading="lazy">
                                     <input type="file" name="keep_thumbnails[e{{ $k }}]" class="form-control form-control-sm input-thumb" accept="image/webp">
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-1">
-                                <label class="form-label small text-muted">Count</label>
-                                <input type="number" name="keep_counts[e{{ $k }}]" class="form-control form-control-sm" value="{{ (int)($f['count'] ?? 0) }}" min="0">
-                            </div>
-                            <div class="col-6 col-md-1">
-                                <label class="form-label small text-muted d-block">Pro</label>
-                                <div class="form-check form-switch">
-                                    <input type="hidden" name="keep_is_pros[e{{ $k }}]" value="0">
-                                    <input type="checkbox" class="form-check-input" role="switch" name="keep_is_pros[e{{ $k }}]" value="1" @checked(!empty($f['is_pro']))>
                                 </div>
                             </div>
                             <div class="col-md-auto ms-auto">
@@ -141,29 +130,18 @@
                     <span class="pos"></span>
                     <span class="badge-pill badge-soft-success">New</span>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label small text-muted">Frame image (.webp) <span class="text-danger">*</span></label>
                     <div class="d-flex align-items-center gap-2">
                         <img src="" class="preview-frame thumb-preview d-none" style="width:46px;height:46px;flex:0 0 auto" alt="">
                         <input type="file" name="new_images[${key}]" class="form-control form-control-sm input-frame" accept="image/webp" required>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label class="form-label small text-muted">Thumbnail (.webp)</label>
                     <div class="d-flex align-items-center gap-2">
                         <img src="" class="preview-thumb thumb-preview d-none" style="width:46px;height:46px;flex:0 0 auto" alt="">
                         <input type="file" name="new_thumbnails[${key}]" class="form-control form-control-sm input-thumb" accept="image/webp">
-                    </div>
-                </div>
-                <div class="col-6 col-md-1">
-                    <label class="form-label small text-muted">Count</label>
-                    <input type="number" name="new_counts[${key}]" class="form-control form-control-sm" value="0" min="0">
-                </div>
-                <div class="col-6 col-md-1">
-                    <label class="form-label small text-muted d-block">Pro</label>
-                    <div class="form-check form-switch">
-                        <input type="hidden" name="new_is_pros[${key}]" value="0">
-                        <input type="checkbox" class="form-check-input" role="switch" name="new_is_pros[${key}]" value="1">
                     </div>
                 </div>
                 <div class="col-md-auto ms-auto">

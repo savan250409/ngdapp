@@ -244,8 +244,7 @@
                             </div>
                         </div>
                         <div class="vm-meta">
-                            <span class="text-muted small">#${i + 1}${f.count ? ' · count ' + f.count : ''}</span>
-                            ${f.is_pro ? '<span class="badge-pill badge-soft-pro">PRO</span>' : ''}
+                            <span class="text-muted small">#${i + 1}</span>
                         </div>
                     </div>
                 </div>`).join('');
@@ -268,7 +267,6 @@
             grid.innerHTML = frames.map((f, i) => `
                 <div class="idx-frame" data-path="${f.image_path}">
                     <span class="pos">${i + 1}</span>
-                    ${f.is_pro ? '<span class="pro badge-pill badge-soft-pro">PRO</span>' : ''}
                     <img src="${f.thumb_url}" alt="" loading="lazy">
                 </div>`).join('');
             if (sortable) sortable.destroy();

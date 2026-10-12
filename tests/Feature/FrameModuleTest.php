@@ -78,8 +78,6 @@ class FrameModuleTest extends TestCase
             'frame_order'    => json_encode(['n0', 'n1']),
             'new_images'     => ['n0' => $this->webp('a.webp'), 'n1' => $this->webp('b.webp')],
             'new_thumbnails' => ['n0' => $this->webp('ta.webp')],
-            'new_counts'     => ['n0' => 5, 'n1' => 9],
-            'new_is_pros'    => ['n0' => 1, 'n1' => 0],
         ]);
         $res->assertRedirect();
 
@@ -88,11 +86,11 @@ class FrameModuleTest extends TestCase
         $this->assertCount(2, $frame->frames);
         $this->assertSame(0, $frame->frames[0]['frame_index']);
         $this->assertSame(1, $frame->frames[1]['frame_index']);
-        $this->assertSame(5, $frame->frames[0]['count']);
-        $this->assertTrue($frame->frames[0]['is_pro']);
-        $this->assertFalse($frame->frames[1]['is_pro']);
         $this->assertNotNull($frame->frames[0]['thumbnail_path']);
         $this->assertNull($frame->frames[1]['thumbnail_path']);
+        // Count / Pro are no longer stored.
+        $this->assertArrayNotHasKey('count', $frame->frames[0]);
+        $this->assertArrayNotHasKey('is_pro', $frame->frames[0]);
         // Files landed on disk.
         $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame/" . $frame->frames[0]['image_path'])));
         $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame_thumbnail/" . $frame->frames[0]['thumbnail_path'])));
@@ -235,8 +233,6 @@ class FrameModuleTest extends TestCase
             'frame_order'    => json_encode(['n0', 'n1']),
             'new_images'     => ['n0' => $this->webp('one.webp'), 'n1' => $this->webp('two.webp')],
             'new_thumbnails' => ['n0' => $this->webp('t1.webp')],
-            'new_counts'     => ['n0' => 1, 'n1' => 2],
-            'new_is_pros'    => ['n0' => 0, 'n1' => 1],
         ])->assertRedirect();
 
         $frame    = Frame::where('category_id', $category->id)->first();
@@ -245,17 +241,13 @@ class FrameModuleTest extends TestCase
         $keepThumb = $original[0]['thumbnail_path'];
         $dropPath = $original[1]['image_path'];   // drop frame #1
 
-        // Edit: new frame first (n0), then kept frame #0 (e0) with edited count; drop frame #1.
+        // Edit: new frame first (n0), then kept frame #0 (e0); drop frame #1.
         $this->put("/frames/{$frame->id}", [
             'category_id'          => $category->id,
             'frame_order'          => json_encode(['n0', 'e0']),
             'keep_image_paths'     => ['e0' => $keepPath],
             'keep_thumbnail_paths' => ['e0' => $keepThumb],
-            'keep_counts'          => ['e0' => 42],
-            'keep_is_pros'         => ['e0' => 1],
             'new_images'           => ['n0' => $this->webp('new.webp')],
-            'new_counts'           => ['n0' => 7],
-            'new_is_pros'          => ['n0' => 0],
         ])->assertRedirect();
 
         $frame->refresh();
@@ -265,10 +257,9 @@ class FrameModuleTest extends TestCase
         $this->assertCount(2, $frames);
         $this->assertSame(0, $frames[0]['frame_index']);
         $this->assertSame(1, $frames[1]['frame_index']);
-        $this->assertSame(7, $frames[0]['count']);          // new frame
         $this->assertSame($keepPath, $frames[1]['image_path']); // kept frame
-        $this->assertSame(42, $frames[1]['count']);         // kept frame's edited count
-        $this->assertTrue($frames[1]['is_pro']);
+        $this->assertArrayNotHasKey('count', $frames[0]);
+        $this->assertArrayNotHasKey('is_pro', $frames[0]);
 
         // Dropped frame's file was deleted; kept + new files exist.
         $this->assertFalse(File::exists(public_path("upload/frame/{$name}/frame/{$dropPath}")));
@@ -280,9 +271,9 @@ class FrameModuleTest extends TestCase
     {
         $c = FrameCategory::create(['category_name' => 'Reorder ' . uniqid(), 'status' => 1]);
         Frame::create(['category_id' => $c->id, 'frames' => [
-            ['image_path' => 'a.webp', 'frame_index' => 0, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
-            ['image_path' => 'b.webp', 'frame_index' => 1, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
-            ['image_path' => 'c.webp', 'frame_index' => 2, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+            ['image_path' => 'a.webp', 'frame_index' => 0, 'thumbnail_path' => null],
+            ['image_path' => 'b.webp', 'frame_index' => 1, 'thumbnail_path' => null],
+            ['image_path' => 'c.webp', 'frame_index' => 2, 'thumbnail_path' => null],
         ]]);
 
         // Reorder to c, a, b.
@@ -311,7 +302,7 @@ class FrameModuleTest extends TestCase
     {
         $withFrames = FrameCategory::create(['category_name' => 'Has ' . uniqid(), 'status' => 1]);
         Frame::create(['category_id' => $withFrames->id, 'frames' => [
-            ['image_path' => 'x.webp', 'frame_index' => 0, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+            ['image_path' => 'x.webp', 'frame_index' => 0, 'thumbnail_path' => null],
         ]]);
 
         // Active category but empty frame record -> must be excluded.
