@@ -31,6 +31,7 @@ Route::middleware('auth')->group(function () {
     // Frame Categories
     Route::prefix('frame-categories')->name('frame-categories.')->group(function () {
         Route::get('/', [FrameCategoryController::class, 'index'])->name('index');
+        Route::post('/order', [FrameCategoryController::class, 'updateOrder'])->name('order');
         Route::post('/', [FrameCategoryController::class, 'store'])->name('store');
         Route::put('/{id}', [FrameCategoryController::class, 'update'])->name('update');
         Route::delete('/{id}', [FrameCategoryController::class, 'destroy'])->name('destroy');
@@ -42,6 +43,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [FrameController::class, 'index'])->name('index');
         Route::get('/create', [FrameController::class, 'create'])->name('create');
         Route::post('/', [FrameController::class, 'store'])->name('store');
+        Route::post('/order', [FrameController::class, 'updateOrder'])->name('order');
+        Route::get('/category/{id}/frames', [FrameController::class, 'categoryFrames'])->name('category-frames');
         Route::get('/{id}/edit', [FrameController::class, 'edit'])->name('edit');
         Route::put('/{id}', [FrameController::class, 'update'])->name('update');
         Route::delete('/{id}', [FrameController::class, 'destroy'])->name('destroy');

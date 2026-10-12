@@ -43,7 +43,7 @@
                         <label class="form-label">Email</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                            <input type="email" name="email" class="form-control" value="{{ old('email') }}" placeholder="admin@gmail.com" required autofocus>
+                            <input type="email" name="email" class="form-control" value="{{ old('email') }}" placeholder="admin@ngdapp" required autofocus>
                         </div>
                     </div>
                     <div class="mb-3">

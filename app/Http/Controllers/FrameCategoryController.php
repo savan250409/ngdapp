@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FrameCategory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 class FrameCategoryController extends Controller
@@ -36,7 +37,30 @@ class FrameCategoryController extends Controller
             ]);
         }
 
-        return view('frame-categories.index', compact('categories'));
+        // All categories in their saved sequence (for the "Index" reorder popup).
+        $allCategories = FrameCategory::orderBy('sort_order')->orderBy('id')->get();
+
+        return view('frame-categories.index', compact('categories', 'allCategories'));
+    }
+
+    /**
+     * Save the drag-and-drop sequence from the Index popup.
+     * Receives an ordered array of category ids; position 0 = first.
+     */
+    public function updateOrder(Request $request)
+    {
+        $request->validate([
+            'order'   => 'required|array|min:1',
+            'order.*' => 'integer|exists:frame_categories,id',
+        ]);
+
+        DB::transaction(function () use ($request) {
+            foreach ($request->input('order') as $i => $id) {
+                FrameCategory::where('id', $id)->update(['sort_order' => $i + 1]);
+            }
+        });
+
+        return response()->json(['success' => true, 'message' => 'Order saved successfully!']);
     }
 
     public function store(Request $request)
@@ -61,7 +85,12 @@ class FrameCategoryController extends Controller
             'category_name'  => $request->category_name,
             'category_image' => $fileName,
             'status'         => $request->status ?? 1,
+            'sort_order'     => (int) FrameCategory::max('sort_order') + 1, // append to the end
         ]);
+
+        if ($request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Frame category added successfully!']);
+        }
 
         return redirect()->route('frame-categories.index')
             ->with('success', 'Frame category added successfully!');
@@ -115,6 +144,10 @@ class FrameCategoryController extends Controller
             'status'         => $request->status,
         ]);
 
+        if ($request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Frame category updated successfully!']);
+        }
+
         return redirect()->route('frame-categories.index')
             ->with('success', 'Frame category updated successfully!');
     }
@@ -129,6 +162,10 @@ class FrameCategoryController extends Controller
         }
 
         $category->delete(); // cascade removes its frame record
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Frame category deleted successfully!']);
+        }
 
         return redirect()->route('frame-categories.index')
             ->with('success', 'Frame category deleted successfully!');

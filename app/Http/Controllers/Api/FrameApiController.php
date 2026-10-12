@@ -18,9 +18,10 @@ class FrameApiController extends Controller
      */
     public function getFrameCategories()
     {
-        $categories = FrameCategory::select('id', 'category_name', 'category_image')
+        $categories = FrameCategory::select('id', 'category_name', 'category_image', 'sort_order')
             ->where('status', 1)
             ->whereIn('id', fn ($q) => $q->select('category_id')->from('frames'))
+            ->orderBy('sort_order')   // custom drag-and-drop sequence (1 = first)
             ->orderBy('id', 'desc')
             ->get();
 
@@ -42,7 +43,7 @@ class FrameApiController extends Controller
                 ? "frame/{$encoded}/category_thumbnail_frame/{$category->category_image}"
                 : null;
             $category->category_thumbnail_image_full_url = $path ? url('/') . '/upload/' . $path : null;
-            unset($category->category_image);
+            unset($category->category_image, $category->sort_order);
 
             $allFrames = [];
             foreach ($frameRecords->get($category->id, collect()) as $record) {
@@ -64,6 +65,13 @@ class FrameApiController extends Controller
 
             return $category;
         });
+
+        // Drop categories that have fewer than one frame (empty frame record).
+        $categories = $categories->filter(fn ($c) => ! empty($c->frames))->values();
+
+        if ($categories->isEmpty()) {
+            return response()->json(['status' => false, 'message' => 'No frame categories found', 'data' => []], 404);
+        }
 
         return response()->json([
             'status'  => true,

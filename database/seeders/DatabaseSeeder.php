@@ -18,10 +18,10 @@ class DatabaseSeeder extends Seeder
     {
         // Static admin account (the only user who can access the panel).
         User::updateOrCreate(
-            ['email' => 'admin@gmail.com'],
+            ['email' => 'admin@ngdapp'],
             [
                 'name'     => 'Admin',
-                'password' => Hash::make('admin123'),
+                'password' => Hash::make('ngdapp@2026'),
             ]
         );
     }

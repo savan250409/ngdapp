@@ -9,6 +9,24 @@
     };
 @endphp
 
+@push('styles')
+<style>
+    #sortableCategories .sort-item {
+        display:flex; align-items:center; gap:12px; padding:9px 12px; margin-bottom:8px;
+        border:1px solid var(--line); border-radius:11px; background:var(--surface); transition:box-shadow .15s;
+    }
+    #sortableCategories .sort-item:hover { box-shadow:var(--shadow); }
+    #sortableCategories .drag-handle { cursor:grab; color:var(--muted); font-size:1.15rem; }
+    #sortableCategories .drag-handle:active { cursor:grabbing; }
+    #sortableCategories .pos {
+        width:26px; height:26px; flex-shrink:0; border-radius:7px; background:var(--brand-50); color:var(--brand-600);
+        font-size:.78rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center;
+    }
+    #sortableCategories .sortable-ghost { opacity:.45; }
+    #sortableCategories .sortable-chosen { box-shadow:0 8px 20px rgba(2,6,23,.18); }
+</style>
+@endpush
+
 {{-- Defined before @section('content') so @yield('table')/@yield('pagination') resolve on full-page render. --}}
 @section('table')
 <table class="table align-middle">
@@ -77,7 +95,10 @@
         <h1>Frame Categories</h1>
         <p>Manage categories, their thumbnails and visibility.</p>
     </div>
-    <button class="btn btn-primary" id="btnAdd"><i class="bi bi-plus-lg me-1"></i> Add Category</button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-light border" id="btnIndex"><i class="bi bi-list-ol me-1"></i> Index</button>
+        <button class="btn btn-primary" id="btnAdd"><i class="bi bi-plus-lg me-1"></i> Add Category</button>
+    </div>
 </div>
 
 <div class="card data-card">
@@ -158,12 +179,86 @@
         </form>
     </div>
 </div>
+
+<!-- Index / Reorder modal -->
+<div class="modal fade" id="indexModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="border:none;border-radius:14px;">
+            <div class="modal-header border-0 pb-1">
+                <div>
+                    <h5 class="modal-title fw-semibold mb-0">Category Order</h5>
+                    <p class="text-muted small mb-0">Drag to reorder — top is first in the API response.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="list-unstyled mb-0" id="sortableCategories">
+                    @forelse($allCategories as $cat)
+                        <li class="sort-item" data-id="{{ $cat->id }}">
+                            <span class="drag-handle"><i class="bi bi-grip-vertical"></i></span>
+                            <span class="pos"></span>
+                            @if($thumbUrl($cat))
+                                <img src="{{ $thumbUrl($cat) }}" class="thumb-preview" style="width:38px;height:38px" alt="" loading="lazy">
+                            @else
+                                <span class="thumb-empty" style="width:38px;height:38px"><i class="bi bi-image"></i></span>
+                            @endif
+                            <span class="nm flex-grow-1 fw-semibold text-truncate">{{ $cat->category_name }}</span>
+                            <span class="badge-pill {{ $cat->status ? 'badge-soft-success' : 'badge-soft-muted' }}">{{ $cat->status ? 'Active' : 'Inactive' }}</span>
+                        </li>
+                    @empty
+                        <li class="text-muted text-center py-4">No categories to order yet.</li>
+                    @endforelse
+                </ul>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveOrderBtn"><i class="bi bi-check-lg me-1"></i>Save Order</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 <script>
 (function () {
     const listUrl = @json(route('frame-categories.index'));
+    const orderUrl = @json(route('frame-categories.order'));
+
+    // ----- Index / reorder popup -----
+    const sortEl = document.getElementById('sortableCategories');
+    function renumber() {
+        sortEl.querySelectorAll('.sort-item').forEach((li, i) => {
+            const pos = li.querySelector('.pos');
+            if (pos) pos.textContent = i + 1;
+        });
+    }
+    if (sortEl && window.Sortable) {
+        Sortable.create(sortEl, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onSort: renumber,
+        });
+        renumber();
+    }
+    $('#btnIndex').on('click', function () {
+        new bootstrap.Modal('#indexModal').show();
+    });
+    $('#saveOrderBtn').on('click', function () {
+        const order = Array.from(sortEl.querySelectorAll('.sort-item')).map(li => li.dataset.id);
+        if (!order.length) { return; }
+        const btn = this;
+        btn.disabled = true;
+        $.post(orderUrl, { order: order }, function (res) {
+            bootstrap.Modal.getInstance(document.getElementById('indexModal'))?.hide();
+            Toast.fire({ icon: 'success', title: res.message || 'Order saved' });
+        }).fail(function () {
+            Swal.fire({ icon: 'error', title: 'Could not save order' });
+        }).always(function () { btn.disabled = false; });
+    });
 
     function reload(page) {
         const params = {
@@ -221,6 +316,37 @@
         new bootstrap.Modal('#categoryModal').show();
     });
 
+    // Submit Add/Edit via AJAX — errors show a popup here without losing the form.
+    $('#categoryForm').on('submit', function (e) {
+        e.preventDefault();
+        const form = this;
+        const btn = $(form).find('button[type="submit"]');
+        btn.prop('disabled', true);
+        $.ajax({
+            url: form.action,
+            method: 'POST',
+            data: new FormData(form),
+            processData: false,
+            contentType: false,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            success: function (res) {
+                bootstrap.Modal.getInstance(document.getElementById('categoryModal'))?.hide();
+                reload();
+                Toast.fire({ icon: 'success', title: res.message || 'Saved' });
+            },
+            error: function (xhr) { window.showAjaxError(xhr); },
+            complete: function () { btn.prop('disabled', false); }
+        });
+    });
+
+    // Live preview of a newly chosen thumbnail
+    $('#category_image').on('change', function () {
+        const file = this.files && this.files[0];
+        if (file) {
+            $('#currentThumb').removeClass('d-none').attr('src', URL.createObjectURL(file));
+        }
+    });
+
     // Toggle status
     $(document).on('change', '.toggle-status', function () {
         const id = $(this).data('id');
@@ -239,7 +365,7 @@
         });
     });
 
-    // Delete confirm
+    // Delete — 1) confirm alert, then 2) success alert (AJAX, no redirect)
     $(document).on('submit', '.form-delete', function (e) {
         e.preventDefault();
         const form = this;
@@ -247,7 +373,22 @@
             title: 'Delete this category?',
             text: 'Its frame record and uploaded files will be removed.',
             icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Yes, delete it'
-        }).then((r) => { if (r.isConfirmed) form.submit(); });
+        }).then((r) => {
+            if (!r.isConfirmed) return;
+            $.ajax({
+                url: form.action,
+                method: 'POST',
+                data: new FormData(form),
+                processData: false,
+                contentType: false,
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                success: function (res) {
+                    Swal.fire({ icon: 'success', title: 'Deleted!', text: res.message || 'Category deleted.', timer: 1800, showConfirmButton: false });
+                    reload();
+                },
+                error: function (xhr) { window.showAjaxError(xhr); }
+            });
+        });
     });
 })();
 </script>

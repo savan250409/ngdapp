@@ -10,9 +10,7 @@ use Illuminate\Support\Facades\File;
 
 class FrameController extends Controller
 {
-    /**
-     * Save an uploaded image under a guaranteed-unique, cache-busting name.
-     */
+    /** Save an uploaded image under a guaranteed-unique, cache-busting name. */
     private function saveImage($file, string $destPath): string
     {
         if (! File::exists($destPath)) {
@@ -39,6 +37,113 @@ class FrameController extends Controller
     private function thumbDir(FrameCategory $category): string
     {
         return public_path('upload/frame/' . $category->category_name . '/frame_thumbnail');
+    }
+
+    private function moveFile(string $from, string $to): void
+    {
+        if (! File::exists($from)) {
+            return;
+        }
+        $dir = dirname($to);
+        if (! File::exists($dir)) {
+            File::makeDirectory($dir, 0777, true, true);
+        }
+        File::move($from, $to);
+    }
+
+    private function decodeOrder($raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Build the ordered frames array from the request, honouring the drag order
+     * (frame_order = ordered list of row keys). Handles kept frames (optionally
+     * replaced or moved across categories) and brand-new uploads, interleaved.
+     */
+    private function assembleFrames(Request $request, FrameCategory $category, ?FrameCategory $old = null): array
+    {
+        $old = $old ?: $category;
+        $frameDest   = $this->frameDir($category);
+        $thumbDest   = $this->thumbDir($category);
+        $oldFrameDir = $this->frameDir($old);
+        $oldThumbDir = $this->thumbDir($old);
+        $categoryChanged = $old->id !== $category->id;
+
+        $order          = $this->decodeOrder($request->input('frame_order'));
+        $keepImagePaths = $request->input('keep_image_paths', []);
+        $keepThumbPaths = $request->input('keep_thumbnail_paths', []);
+        $keepCounts     = $request->input('keep_counts', []);
+        $keepIsPros     = $request->input('keep_is_pros', []);
+        $keepImages     = $request->file('keep_images', []);
+        $keepThumbs     = $request->file('keep_thumbnails', []);
+
+        $newImages = $request->file('new_images', []);
+        $newThumbs = $request->file('new_thumbnails', []);
+        $newCounts = $request->input('new_counts', []);
+        $newIsPros = $request->input('new_is_pros', []);
+
+        $frames = [];
+        $i = 0;
+
+        foreach ($order as $key) {
+            // ----- Kept (existing) frame -----
+            if (array_key_exists($key, $keepImagePaths)) {
+                $imagePath = $keepImagePaths[$key];
+                if (empty($imagePath)) {
+                    continue;
+                }
+                $thumbPath = $keepThumbPaths[$key] ?? null;
+
+                if (! empty($keepImages[$key])) {
+                    if (File::exists($oldFrameDir . '/' . $imagePath)) {
+                        File::delete($oldFrameDir . '/' . $imagePath);
+                    }
+                    $imagePath = $this->saveImage($keepImages[$key], $frameDest);
+                } elseif ($categoryChanged) {
+                    $this->moveFile($oldFrameDir . '/' . $imagePath, $frameDest . '/' . $imagePath);
+                }
+
+                if (! empty($keepThumbs[$key])) {
+                    if (! empty($thumbPath) && File::exists($oldThumbDir . '/' . $thumbPath)) {
+                        File::delete($oldThumbDir . '/' . $thumbPath);
+                    }
+                    $thumbPath = $this->saveImage($keepThumbs[$key], $thumbDest);
+                } elseif ($categoryChanged && ! empty($thumbPath)) {
+                    $this->moveFile($oldThumbDir . '/' . $thumbPath, $thumbDest . '/' . $thumbPath);
+                }
+
+                $frames[] = [
+                    'image_path'     => $imagePath,
+                    'frame_index'    => $i,
+                    'thumbnail_path' => ! empty($thumbPath) ? $thumbPath : null,
+                    'count'          => (int) ($keepCounts[$key] ?? 0),
+                    'is_pro'         => ! empty($keepIsPros[$key]),
+                ];
+                $i++;
+
+            // ----- New frame -----
+            } elseif (! empty($newImages[$key])) {
+                $imageName = $this->saveImage($newImages[$key], $frameDest);
+                $thumbName = ! empty($newThumbs[$key]) ? $this->saveImage($newThumbs[$key], $thumbDest) : null;
+
+                $frames[] = [
+                    'image_path'     => $imageName,
+                    'frame_index'    => $i,
+                    'thumbnail_path' => $thumbName,
+                    'count'          => (int) ($newCounts[$key] ?? 0),
+                    'is_pro'         => ! empty($newIsPros[$key]),
+                ];
+                $i++;
+            }
+        }
+
+        return $frames;
     }
 
     public function index()
@@ -85,35 +190,33 @@ class FrameController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'category_id'  => ['required', 'exists:frame_categories,id', 'unique:frames,category_id'],
-            'images'       => 'required|array|min:1',
-            'images.*'     => 'required|image|mimes:webp|max:20048',
-            'thumbnails'   => 'nullable|array',
-            'thumbnails.*' => 'nullable|image|mimes:webp|max:20048',
+            'category_id'      => ['required', 'exists:frame_categories,id', 'unique:frames,category_id'],
+            'frame_order'      => ['required', 'string'],
+            'new_images'       => ['required', 'array', 'min:1'],
+            'new_images.*'     => ['required', 'image', 'mimes:webp', 'max:20048'],
+            'new_thumbnails.*' => ['nullable', 'image', 'mimes:webp', 'max:20048'],
         ], ['category_id.unique' => 'A frame record for this category already exists.']);
 
-        $category   = FrameCategory::findOrFail($request->category_id);
-        $frameDest  = $this->frameDir($category);
-        $thumbDest  = $this->thumbDir($category);
-        $thumbnails = $request->file('thumbnails') ?? [];
-        $counts     = $request->input('counts', []);
-        $is_pros    = $request->input('is_pros', []);
+        $category = FrameCategory::findOrFail($request->category_id);
 
-        $framesArray = [];
-        foreach ($request->file('images') as $i => $file) {
-            $imageName = $this->saveImage($file, $frameDest);
-            $thumbName = ! empty($thumbnails[$i]) ? $this->saveImage($thumbnails[$i], $thumbDest) : null;
+        DB::beginTransaction();
+        try {
+            $framesArray = $this->assembleFrames($request, $category, $category);
+            if (empty($framesArray)) {
+                DB::rollBack();
+                if ($request->ajax()) {
+                    return response()->json(['message' => 'Add at least one frame.', 'errors' => ['new_images' => ['Add at least one frame.']]], 422);
+                }
 
-            $framesArray[] = [
-                'image_path'     => $imageName,
-                'frame_index'    => $i,
-                'thumbnail_path' => $thumbName,
-                'count'          => (int) ($counts[$i] ?? 0),
-                'is_pro'         => ! empty($is_pros[$i]),
-            ];
+                return back()->withInput()->withErrors(['new_images' => 'Add at least one frame.']);
+            }
+
+            Frame::create(['category_id' => $category->id, 'frames' => $framesArray]);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
         }
-
-        Frame::create(['category_id' => $request->category_id, 'frames' => $framesArray]);
 
         return $request->ajax()
             ? response()->json(['success' => true, 'message' => 'Frame(s) added successfully!'])
@@ -134,133 +237,48 @@ class FrameController extends Controller
         $frame = Frame::with('category')->findOrFail($id);
 
         $request->validate([
-            'category_id'          => ['required', 'exists:frame_categories,id', 'unique:frames,category_id,' . $id . ',id'],
-            'keep_images.*'        => 'nullable|image|mimes:webp|max:20048',
-            'keep_thumbnails.*'    => 'nullable|image|mimes:webp|max:20048',
-            'new_images'           => 'nullable|array',
-            'new_images.*'         => 'required|image|mimes:webp|max:20048',
-            'new_thumbnails.*'     => 'nullable|image|mimes:webp|max:20048',
+            'category_id'       => ['required', 'exists:frame_categories,id', 'unique:frames,category_id,' . $id . ',id'],
+            'frame_order'       => ['required', 'string'],
+            'keep_images.*'     => ['nullable', 'image', 'mimes:webp', 'max:20048'],
+            'keep_thumbnails.*' => ['nullable', 'image', 'mimes:webp', 'max:20048'],
+            'new_images.*'      => ['nullable', 'image', 'mimes:webp', 'max:20048'],
+            'new_thumbnails.*'  => ['nullable', 'image', 'mimes:webp', 'max:20048'],
         ], ['category_id.unique' => 'A frame record for this category already exists.']);
 
         $oldCategory = $frame->category;
         $newCategory = FrameCategory::findOrFail($request->category_id);
-        $categoryChanged = $oldCategory->id !== $newCategory->id;
-
-        $oldFrameDir = $this->frameDir($oldCategory);
-        $oldThumbDir = $this->thumbDir($oldCategory);
-        $newFrameDir = $this->frameDir($newCategory);
-        $newThumbDir = $this->thumbDir($newCategory);
-
-        $keepImagePaths     = $request->input('keep_image_paths', []);
-        $keepThumbnailPaths = $request->input('keep_thumbnail_paths', []);
-        $keepCounts         = $request->input('keep_counts', []);
-        $keepIsPros         = $request->input('keep_is_pros', []);
-        $keepImages         = $request->file('keep_images', []);
-        $keepThumbnails     = $request->file('keep_thumbnails', []);
-
-        $newImages     = $request->file('new_images', []);
-        $newThumbnails = $request->file('new_thumbnails', []);
-        $newCounts     = $request->input('new_counts', []);
-        $newIsPros     = $request->input('new_is_pros', []);
 
         DB::beginTransaction();
         try {
-            // 2. Delete files for existing frames NOT present in the kept set.
-            $keptImageSet = array_values(array_filter($keepImagePaths));
+            // Delete files for existing frames that were removed (not in the kept set).
+            $keptImageSet = array_values(array_filter($request->input('keep_image_paths', [])));
+            $oldFrameDir  = $this->frameDir($oldCategory);
+            $oldThumbDir  = $this->thumbDir($oldCategory);
+
             foreach ($frame->frames ?? [] as $existing) {
                 if (! in_array($existing['image_path'], $keptImageSet, true)) {
-                    $imgPath = $oldFrameDir . '/' . $existing['image_path'];
-                    if (File::exists($imgPath)) {
-                        File::delete($imgPath);
+                    if (File::exists($oldFrameDir . '/' . $existing['image_path'])) {
+                        File::delete($oldFrameDir . '/' . $existing['image_path']);
                     }
-                    if (! empty($existing['thumbnail_path'])) {
-                        $thumbPath = $oldThumbDir . '/' . $existing['thumbnail_path'];
-                        if (File::exists($thumbPath)) {
-                            File::delete($thumbPath);
-                        }
+                    if (! empty($existing['thumbnail_path']) && File::exists($oldThumbDir . '/' . $existing['thumbnail_path'])) {
+                        File::delete($oldThumbDir . '/' . $existing['thumbnail_path']);
                     }
                 }
             }
 
-            // 3. Upload new frames (added first).
-            $newFrames = [];
-            foreach ($newImages as $i => $file) {
-                if (! $file) {
-                    continue;
+            $framesArray = $this->assembleFrames($request, $newCategory, $oldCategory);
+            if (empty($framesArray)) {
+                DB::rollBack();
+                if ($request->ajax()) {
+                    return response()->json(['message' => 'A frame record must have at least one frame.', 'errors' => ['frame_order' => ['A frame record must have at least one frame.']]], 422);
                 }
-                $imageName = $this->saveImage($file, $newFrameDir);
-                $thumbName = ! empty($newThumbnails[$i]) ? $this->saveImage($newThumbnails[$i], $newThumbDir) : null;
 
-                $newFrames[] = [
-                    'image_path'     => $imageName,
-                    'thumbnail_path' => $thumbName,
-                    'count'          => (int) ($newCounts[$i] ?? 0),
-                    'is_pro'         => ! empty($newIsPros[$i]),
-                ];
+                return back()->withInput()->withErrors(['frame_order' => 'A frame record must have at least one frame.']);
             }
 
-            // 4. Process kept frames (replace file, or move when the category changed).
-            $keptFrames = [];
-            foreach ($keepImagePaths as $k => $imagePath) {
-                if (empty($imagePath)) {
-                    continue;
-                }
-                $thumbPath = $keepThumbnailPaths[$k] ?? null;
+            $frame->update(['category_id' => $newCategory->id, 'frames' => $framesArray]);
 
-                // Image: replacement wins, otherwise move when category changed.
-                if (! empty($keepImages[$k])) {
-                    $oldImg = $oldFrameDir . '/' . $imagePath;
-                    if (File::exists($oldImg)) {
-                        File::delete($oldImg);
-                    }
-                    $imagePath = $this->saveImage($keepImages[$k], $newFrameDir);
-                } elseif ($categoryChanged) {
-                    $this->moveFile($oldFrameDir . '/' . $imagePath, $newFrameDir . '/' . $imagePath);
-                }
-
-                // Thumbnail: replacement wins, otherwise move when category changed.
-                if (! empty($keepThumbnails[$k])) {
-                    if (! empty($thumbPath)) {
-                        $oldThumb = $oldThumbDir . '/' . $thumbPath;
-                        if (File::exists($oldThumb)) {
-                            File::delete($oldThumb);
-                        }
-                    }
-                    $thumbPath = $this->saveImage($keepThumbnails[$k], $newThumbDir);
-                } elseif ($categoryChanged && ! empty($thumbPath)) {
-                    $this->moveFile($oldThumbDir . '/' . $thumbPath, $newThumbDir . '/' . $thumbPath);
-                }
-
-                $keptFrames[] = [
-                    'image_path'     => $imagePath,
-                    'thumbnail_path' => ! empty($thumbPath) ? $thumbPath : null,
-                    'count'          => (int) ($keepCounts[$k] ?? 0),
-                    'is_pro'         => ! empty($keepIsPros[$k]),
-                ];
-            }
-
-            // 5. Merge new-first then kept, and re-index frame_index 0..n.
-            $merged = array_merge($newFrames, $keptFrames);
-            $framesArray = [];
-            foreach ($merged as $i => $f) {
-                $f['frame_index'] = $i;
-                $framesArray[] = [
-                    'image_path'     => $f['image_path'],
-                    'frame_index'    => $i,
-                    'thumbnail_path' => $f['thumbnail_path'],
-                    'count'          => $f['count'],
-                    'is_pro'         => $f['is_pro'],
-                ];
-            }
-
-            // 6. Save the record.
-            $frame->update([
-                'category_id' => $newCategory->id,
-                'frames'      => $framesArray,
-            ]);
-
-            // 7. If the category changed and the old category now has no frame record, clean its folders.
-            if ($categoryChanged && Frame::where('category_id', $oldCategory->id)->count() < 1) {
+            if ($oldCategory->id !== $newCategory->id && Frame::where('category_id', $oldCategory->id)->count() < 1) {
                 if (File::exists($oldFrameDir)) {
                     File::deleteDirectory($oldFrameDir);
                 }
@@ -280,16 +298,70 @@ class FrameController extends Controller
             : redirect()->route('frames.index')->with('success', 'Frame record updated successfully!');
     }
 
-    private function moveFile(string $from, string $to): void
+    /**
+     * JSON list of a category's frames (ordered), for the Index reorder popup.
+     */
+    public function categoryFrames($id)
     {
-        if (! File::exists($from)) {
-            return;
+        $category = FrameCategory::findOrFail($id);
+        $record   = Frame::where('category_id', $id)->first();
+        $cat      = rawurlencode($category->category_name);
+
+        $frames = collect($record->frames ?? [])
+            ->sortBy('frame_index')
+            ->values()
+            ->map(function ($f) use ($cat) {
+                $thumb     = $f['thumbnail_path'] ?? null;
+                $frameUrl  = url('upload/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
+                $thumbUrl  = $thumb ? url('upload/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($thumb)) : null;
+
+                return [
+                    'image_path'    => $f['image_path'],
+                    'frame_url'     => $frameUrl,
+                    'thumbnail_url' => $thumbUrl,
+                    'thumb_url'     => $thumbUrl ?: $frameUrl, // display helper (thumb, else full)
+                    'is_pro'        => ! empty($f['is_pro']),
+                    'count'         => (int) ($f['count'] ?? 0),
+                ];
+            });
+
+        return response()->json(['frames' => $frames]);
+    }
+
+    /**
+     * Save the drag-and-drop order of frames within one category (Index popup).
+     * order = ordered list of image_path values.
+     */
+    public function updateOrder(Request $request)
+    {
+        $request->validate([
+            'category_id' => ['required', 'exists:frame_categories,id'],
+            'order'       => ['required', 'array', 'min:1'],
+            'order.*'     => ['string'],
+        ]);
+
+        $record = Frame::where('category_id', $request->category_id)->firstOrFail();
+        $byPath = collect($record->frames ?? [])->keyBy('image_path');
+
+        $ordered = [];
+        $i = 0;
+        foreach ($request->input('order') as $imagePath) {
+            if ($byPath->has($imagePath)) {
+                $f = $byPath->get($imagePath);
+                $f['frame_index'] = $i++;
+                $ordered[] = $f;
+                $byPath->forget($imagePath);
+            }
         }
-        $dir = dirname($to);
-        if (! File::exists($dir)) {
-            File::makeDirectory($dir, 0777, true, true);
+        // Safety: append any frames not referenced in the order payload.
+        foreach ($byPath as $f) {
+            $f['frame_index'] = $i++;
+            $ordered[] = $f;
         }
-        File::move($from, $to);
+
+        $record->update(['frames' => $ordered]);
+
+        return response()->json(['success' => true, 'message' => 'Frame order saved successfully!']);
     }
 
     public function destroy($id)
@@ -319,7 +391,6 @@ class FrameController extends Controller
             }
         }
 
-        return redirect()->route('frames.index')
-            ->with('success', 'Frame record deleted successfully!');
+        return redirect()->route('frames.index')->with('success', 'Frame record deleted successfully!');
     }
 }

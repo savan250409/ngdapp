@@ -9,7 +9,7 @@ class FrameCategory extends Model
 {
     protected $table = 'frame_categories';
 
-    protected $fillable = ['category_name', 'category_image', 'status'];
+    protected $fillable = ['category_name', 'category_image', 'status', 'sort_order'];
 
     public function frames(): HasMany
     {

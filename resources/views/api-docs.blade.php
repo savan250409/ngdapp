@@ -8,13 +8,13 @@
     .api-card { height:100%; }
     .api-card .no-title { font-weight:700; font-size:1rem; letter-spacing:-.01em; }
     .api-label { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#0ea5a3; margin-bottom:3px; }
-    .api-url { background:#f8fafc; border:1px solid var(--line); border-radius:8px; padding:9px 11px; word-break:break-all; color:#1d4ed8; position:relative; }
+    .api-url { background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:9px 11px; word-break:break-all; color:#3b82f6; position:relative; }
     .api-url .copy { position:absolute; top:6px; right:6px; }
     .method-badge { font-size:.7rem; font-weight:700; letter-spacing:.04em; padding:.25em .6em; border-radius:6px; }
-    .method-GET { background:#dcfce7; color:#15803d; }
-    .method-POST { background:#dbeafe; color:#1d4ed8; }
-    .method-PUT { background:#fef3c7; color:#b45309; }
-    .method-DELETE { background:#fee2e2; color:#dc2626; }
+    .method-GET { background:rgba(34,197,94,.16); color:#22c55e; }
+    .method-POST { background:rgba(59,130,246,.16); color:#3b82f6; }
+    .method-PUT { background:rgba(245,158,11,.16); color:#f59e0b; }
+    .method-DELETE { background:rgba(239,68,68,.16); color:#ef4444; }
     .param-name { color:#dc2626; font-weight:600; }
     .param-req { color:#94a3b8; font-size:.78rem; }
     .param-opt { color:#64748b; font-size:.78rem; }
@@ -28,25 +28,7 @@
     <div class="page-head">
         <div>
             <h1>API Documentation</h1>
-            <p>All endpoints for the Frames module. Send the Bearer token with every request.</p>
-        </div>
-    </div>
-
-    {{-- Authentication --}}
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex align-items-center gap-2 mb-2">
-                <i class="bi bi-shield-lock-fill text-primary"></i>
-                <h6 class="fw-semibold mb-0">Authentication</h6>
-            </div>
-            <p class="text-muted small mb-2">Every request must include this header:</p>
-            <div class="api-url mono">
-                Authorization: Bearer <span id="tokenText">{{ $token !== '' ? $token : '<API_TOKEN>' }}</span>
-                @if($token !== '')
-                    <button type="button" class="btn btn-sm btn-light border copy" data-copy="{{ 'Authorization: Bearer ' . $token }}"><i class="bi bi-clipboard"></i></button>
-                @endif
-            </div>
-            <p class="text-muted small mb-0 mt-2">Base URL: <span class="mono">{{ $base }}</span></p>
+            <p>All endpoints for the Frames module.</p>
         </div>
     </div>
 

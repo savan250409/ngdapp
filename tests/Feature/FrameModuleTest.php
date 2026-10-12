@@ -72,13 +72,14 @@ class FrameModuleTest extends TestCase
         $this->assertNotNull($category->category_image);
         $this->assertTrue(File::exists(public_path("upload/frame/{$name}/category_thumbnail_frame/{$category->category_image}")));
 
-        // 2. Create a frame record with 2 frames (one with a thumbnail).
+        // 2. Create a frame record with 2 frames (one with a thumbnail), drag order n0,n1.
         $res = $this->post('/frames', [
-            'category_id' => $category->id,
-            'images'      => [$this->webp('a.webp'), $this->webp('b.webp')],
-            'thumbnails'  => [$this->webp('ta.webp'), null],
-            'counts'      => [5, 9],
-            'is_pros'     => [1, 0],
+            'category_id'    => $category->id,
+            'frame_order'    => json_encode(['n0', 'n1']),
+            'new_images'     => ['n0' => $this->webp('a.webp'), 'n1' => $this->webp('b.webp')],
+            'new_thumbnails' => ['n0' => $this->webp('ta.webp')],
+            'new_counts'     => ['n0' => 5, 'n1' => 9],
+            'new_is_pros'    => ['n0' => 1, 'n1' => 0],
         ]);
         $res->assertRedirect();
 
@@ -99,7 +100,8 @@ class FrameModuleTest extends TestCase
         // 3. One-record-per-category rule is enforced.
         $dup = $this->post('/frames', [
             'category_id' => $category->id,
-            'images'      => [$this->webp('c.webp')],
+            'frame_order' => json_encode(['n0']),
+            'new_images'  => ['n0' => $this->webp('c.webp')],
         ]);
         $dup->assertSessionHasErrors('category_id');
 
@@ -164,6 +166,39 @@ class FrameModuleTest extends TestCase
         $this->assertDatabaseMissing('frame_categories', ['id' => $category->id]);
     }
 
+    public function test_category_order_reflects_in_api(): void
+    {
+        // Three active categories, each with a frame so they appear in the API.
+        $make = function (string $name, int $order) {
+            $c = FrameCategory::create(['category_name' => $name, 'status' => 1, 'sort_order' => $order]);
+            Frame::create(['category_id' => $c->id, 'frames' => [
+                ['image_path' => 'x.webp', 'frame_index' => 0, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+            ]]);
+            return $c;
+        };
+        $a = $make('Alpha ' . uniqid(), 1);
+        $b = $make('Beta ' . uniqid(), 2);
+        $cc = $make('Gamma ' . uniqid(), 3);
+
+        // Reorder: Gamma, Alpha, Beta.
+        $this->post('/frame-categories/order', ['order' => [$cc->id, $a->id, $b->id]])
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(1, $cc->fresh()->sort_order);
+        $this->assertSame(2, $a->fresh()->sort_order);
+        $this->assertSame(3, $b->fresh()->sort_order);
+
+        // API returns them in the saved sequence.
+        $res = $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res->assertStatus(200)
+            ->assertJsonPath('data.0.category_name', $cc->category_name)
+            ->assertJsonPath('data.1.category_name', $a->category_name)
+            ->assertJsonPath('data.2.category_name', $b->category_name);
+
+        // The internal sort_order is not exposed in the API payload.
+        $this->assertArrayNotHasKey('sort_order', $res->json('data.0'));
+    }
+
     public function test_frame_edit_keep_replace_remove_add_and_reindex(): void
     {
         $name = 'EditCat ' . uniqid();
@@ -173,11 +208,12 @@ class FrameModuleTest extends TestCase
 
         // Seed a record with 2 frames via the store endpoint.
         $this->post('/frames', [
-            'category_id' => $category->id,
-            'images'      => [$this->webp('one.webp'), $this->webp('two.webp')],
-            'thumbnails'  => [$this->webp('t1.webp'), null],
-            'counts'      => [1, 2],
-            'is_pros'     => [0, 1],
+            'category_id'    => $category->id,
+            'frame_order'    => json_encode(['n0', 'n1']),
+            'new_images'     => ['n0' => $this->webp('one.webp'), 'n1' => $this->webp('two.webp')],
+            'new_thumbnails' => ['n0' => $this->webp('t1.webp')],
+            'new_counts'     => ['n0' => 1, 'n1' => 2],
+            'new_is_pros'    => ['n0' => 0, 'n1' => 1],
         ])->assertRedirect();
 
         $frame    = Frame::where('category_id', $category->id)->first();
@@ -186,17 +222,17 @@ class FrameModuleTest extends TestCase
         $keepThumb = $original[0]['thumbnail_path'];
         $dropPath = $original[1]['image_path'];   // drop frame #1
 
-        // Edit: keep frame #0 (edit count), drop frame #1, add 1 new frame.
+        // Edit: new frame first (n0), then kept frame #0 (e0) with edited count; drop frame #1.
         $this->put("/frames/{$frame->id}", [
             'category_id'          => $category->id,
-            'keep_image_paths'     => [0 => $keepPath],
-            'keep_thumbnail_paths' => [0 => $keepThumb],
-            'keep_counts'          => [0 => 42],
-            'keep_is_pros'         => [0 => 1],
-            'new_images'           => [$this->webp('new.webp')],
-            'new_thumbnails'       => [null],
-            'new_counts'           => [7],
-            'new_is_pros'          => [0],
+            'frame_order'          => json_encode(['n0', 'e0']),
+            'keep_image_paths'     => ['e0' => $keepPath],
+            'keep_thumbnail_paths' => ['e0' => $keepThumb],
+            'keep_counts'          => ['e0' => 42],
+            'keep_is_pros'         => ['e0' => 1],
+            'new_images'           => ['n0' => $this->webp('new.webp')],
+            'new_counts'           => ['n0' => 7],
+            'new_is_pros'          => ['n0' => 0],
         ])->assertRedirect();
 
         $frame->refresh();
@@ -215,5 +251,55 @@ class FrameModuleTest extends TestCase
         $this->assertFalse(File::exists(public_path("upload/frame/{$name}/frame/{$dropPath}")));
         $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame/{$keepPath}")));
         $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame/" . $frames[0]['image_path'])));
+    }
+
+    public function test_frames_reorder_within_category_reflects_in_api(): void
+    {
+        $c = FrameCategory::create(['category_name' => 'Reorder ' . uniqid(), 'status' => 1]);
+        Frame::create(['category_id' => $c->id, 'frames' => [
+            ['image_path' => 'a.webp', 'frame_index' => 0, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+            ['image_path' => 'b.webp', 'frame_index' => 1, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+            ['image_path' => 'c.webp', 'frame_index' => 2, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+        ]]);
+
+        // Reorder to c, a, b.
+        $this->post('/frames/order', ['category_id' => $c->id, 'order' => ['c.webp', 'a.webp', 'b.webp']])
+            ->assertJsonPath('success', true);
+
+        $frames = Frame::where('category_id', $c->id)->first()->frames;
+        $this->assertSame('c.webp', $frames[0]['image_path']);
+        $this->assertSame(0, $frames[0]['frame_index']);
+        $this->assertSame('a.webp', $frames[1]['image_path']);
+        $this->assertSame('b.webp', $frames[2]['image_path']);
+
+        // API returns frames in the new order.
+        $res = $this->postJson('/api/v1/getFramesByCategoryId',
+            ['category_id' => $c->id],
+            ['Authorization' => 'Bearer ' . $this->token]
+        );
+        $res->assertStatus(200);
+        $urls = $res->json('data.frame');
+        $this->assertStringContainsString('/c.webp', $urls[0]);
+        $this->assertStringContainsString('/a.webp', $urls[1]);
+        $this->assertStringContainsString('/b.webp', $urls[2]);
+    }
+
+    public function test_api_excludes_active_categories_without_frames(): void
+    {
+        $withFrames = FrameCategory::create(['category_name' => 'Has ' . uniqid(), 'status' => 1]);
+        Frame::create(['category_id' => $withFrames->id, 'frames' => [
+            ['image_path' => 'x.webp', 'frame_index' => 0, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
+        ]]);
+
+        // Active category but empty frame record -> must be excluded.
+        $empty = FrameCategory::create(['category_name' => 'Empty ' . uniqid(), 'status' => 1]);
+        Frame::create(['category_id' => $empty->id, 'frames' => []]);
+
+        $res = $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res->assertStatus(200);
+
+        $names = collect($res->json('data'))->pluck('category_name');
+        $this->assertTrue($names->contains($withFrames->category_name));
+        $this->assertFalse($names->contains($empty->category_name));
     }
 }
