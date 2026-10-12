@@ -166,6 +166,29 @@ class FrameModuleTest extends TestCase
         $this->assertDatabaseMissing('frame_categories', ['id' => $category->id]);
     }
 
+    public function test_categories_ajax_list_renders(): void
+    {
+        FrameCategory::create(['category_name' => 'Ajax ' . uniqid(), 'status' => 1]);
+
+        // The AJAX branch must render the full view (incl. the Index popup that needs
+        // $allCategories) without error — this is what the reload() after delete calls.
+        $res = $this->get('/frame-categories', ['X-Requested-With' => 'XMLHttpRequest']);
+
+        $res->assertStatus(200)
+            ->assertJsonStructure(['table', 'pagination', 'total']);
+    }
+
+    public function test_category_delete_via_ajax_returns_json(): void
+    {
+        $c = FrameCategory::create(['category_name' => 'DelAjax ' . uniqid(), 'status' => 1]);
+
+        $this->delete("/frame-categories/{$c->id}", [], ['X-Requested-With' => 'XMLHttpRequest'])
+            ->assertStatus(200)
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseMissing('frame_categories', ['id' => $c->id]);
+    }
+
     public function test_category_order_reflects_in_api(): void
     {
         // Three active categories, each with a frame so they appear in the API.

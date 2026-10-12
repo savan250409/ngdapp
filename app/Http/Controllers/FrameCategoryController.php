@@ -27,8 +27,12 @@ class FrameCategoryController extends Controller
             'status_filter' => request('status_filter'),
         ]);
 
+        // All categories in their saved sequence (for the "Index" reorder popup).
+        // Needed by the view's content section in BOTH the AJAX and full-page render.
+        $allCategories = FrameCategory::orderBy('sort_order')->orderBy('id')->get();
+
         if (request()->ajax()) {
-            $view = view('frame-categories.index', compact('categories'))->renderSections();
+            $view = view('frame-categories.index', compact('categories', 'allCategories'))->renderSections();
 
             return response()->json([
                 'table'      => $view['table'],
@@ -36,9 +40,6 @@ class FrameCategoryController extends Controller
                 'total'      => $categories->total(),
             ]);
         }
-
-        // All categories in their saved sequence (for the "Index" reorder popup).
-        $allCategories = FrameCategory::orderBy('sort_order')->orderBy('id')->get();
 
         return view('frame-categories.index', compact('categories', 'allCategories'));
     }
