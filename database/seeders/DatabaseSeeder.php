@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
     {
         // Default app.
         App::updateOrCreate(['code' => 'ngd001'], ['name' => 'NGD 001', 'status' => 1]);
+        App::createAppTables('ngd001');
 
         // Super-admin (no app_code = sees all apps, can switch).
         User::updateOrCreate(

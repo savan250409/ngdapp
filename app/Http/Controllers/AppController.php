@@ -3,11 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\App;
-use App\Models\Frame;
-use App\Models\FrameCategory;
-use App\Models\MilestoneFrame;
 use App\Models\User;
-use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -41,47 +37,75 @@ class AppController extends Controller
         return view('apps.index', compact('apps'));
     }
 
-    /** Create a new app + its scoped admin login ({code}@admin / {code}@2026). */
+    /**
+     * Create a new app:
+     *  1. Record in apps table.
+     *  2. Create module tables ({code}_frames_category, {code}_frames, {code}_milestone_frame).
+     *  3. Auto-create the app-admin login ({code}@admin / {code}@2026).
+     */
     public function store(Request $request)
     {
         $this->ensureSuperAdmin();
         $request->validate([
-            'code' => ['required', 'string', 'max:50', 'regex:/^[a-zA-Z0-9_-]+$/', 'unique:apps,code'],
+            'code' => ['required', 'string', 'max:50', 'regex:/^[a-zA-Z0-9_]+$/', 'unique:apps,code'],
             'name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $code = $request->code;
+        $code = strtolower(trim($request->code));
 
         DB::transaction(function () use ($code, $request) {
-            App::create(['code' => $code, 'name' => $request->name ?: strtoupper($code), 'status' => 1]);
+            // 1. Insert into apps registry.
+            App::create([
+                'code'   => $code,
+                'name'   => $request->name ?: strtoupper($code),
+                'status' => 1,
+            ]);
 
-            // Auto-create the app admin login (withoutGlobalScopes not needed: users aren't app-scoped models).
+            // 2. Auto-create the app admin login.
             User::updateOrCreate(
                 ['email' => $code . '@admin'],
-                ['name' => strtoupper($code) . ' Admin', 'password' => Hash::make($code . '@2026'), 'app_code' => $code]
+                [
+                    'name'     => strtoupper($code) . ' Admin',
+                    'password' => Hash::make($code . '@2026'),
+                    'app_code' => $code,
+                ]
             );
         });
 
+        // 3. Create module tables for this app.
+        App::createAppTables($code);
+
+        $msg = "App {$code} created. Login: {$code}@admin / {$code}@2026";
+
         return $request->ajax()
-            ? response()->json(['success' => true, 'message' => "App {$code} created. Login: {$code}@admin / {$code}@2026"])
-            : back()->with('success', "App {$code} created. Login: {$code}@admin / {$code}@2026");
+            ? response()->json(['success' => true, 'message' => $msg])
+            : back()->with('success', $msg);
     }
 
-    /** Delete an app, its admin users, its scoped data and its uploads. */
+    /**
+     * Delete an app:
+     *  1. Drop module tables ({code}_frames, {code}_frames_category, {code}_milestone_frame).
+     *  2. Remove the app-admin user(s).
+     *  3. Delete uploaded files.
+     *  4. Remove from apps registry.
+     */
     public function destroy(Request $request, $id)
     {
         $this->ensureSuperAdmin();
         $app = App::findOrFail($id);
 
         DB::transaction(function () use ($app) {
-            // Remove scoped data (ignore global scope so we hit the right app regardless of current context).
-            FrameCategory::withoutGlobalScopes()->where('app_code', $app->code)->delete();
-            Frame::withoutGlobalScopes()->where('app_code', $app->code)->delete();
-            MilestoneFrame::withoutGlobalScopes()->where('app_code', $app->code)->delete();
+            // 1. Remove app-admin users from the main DB.
             User::where('app_code', $app->code)->delete();
+
+            // 2. Remove from apps registry.
             $app->delete();
         });
 
+        // 3. Drop module tables.
+        App::dropAppTables($app->code);
+
+        // 4. Remove uploaded files.
         $folder = public_path('upload/' . $app->code);
         if (File::exists($folder)) {
             File::deleteDirectory($folder);

@@ -4,9 +4,9 @@ use App\Http\Controllers\ApiDocController;
 use App\Http\Controllers\AppController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\FrameCategoryController;
-use App\Http\Controllers\FrameController;
-use App\Http\Controllers\MilestoneFrameController;
+use App\Http\Controllers\Ngd001FrameCategoryController;
+use App\Http\Controllers\Ngd001FrameController;
+use App\Http\Controllers\Ngd001MilestoneFrameController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,36 +40,36 @@ Route::middleware(['auth', 'app.context'])->group(function () {
 
     // Frame Categories
     Route::prefix('frame-categories')->name('frame-categories.')->group(function () {
-        Route::get('/', [FrameCategoryController::class, 'index'])->name('index');
-        Route::post('/order', [FrameCategoryController::class, 'updateOrder'])->name('order');
-        Route::post('/', [FrameCategoryController::class, 'store'])->name('store');
-        Route::put('/{id}', [FrameCategoryController::class, 'update'])->name('update');
-        Route::delete('/{id}', [FrameCategoryController::class, 'destroy'])->name('destroy');
-        Route::post('/{id}/toggle-status', [FrameCategoryController::class, 'toggleStatus'])->name('toggle-status');
+        Route::get('/', [Ngd001FrameCategoryController::class, 'index'])->name('index');
+        Route::post('/order', [Ngd001FrameCategoryController::class, 'updateOrder'])->name('order');
+        Route::post('/', [Ngd001FrameCategoryController::class, 'store'])->name('store');
+        Route::put('/{id}', [Ngd001FrameCategoryController::class, 'update'])->name('update');
+        Route::delete('/{id}', [Ngd001FrameCategoryController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/toggle-status', [Ngd001FrameCategoryController::class, 'toggleStatus'])->name('toggle-status');
     });
 
     // Frames (the "frame builder")
     Route::prefix('frames')->name('frames.')->group(function () {
-        Route::get('/', [FrameController::class, 'index'])->name('index');
-        Route::get('/create', [FrameController::class, 'create'])->name('create');
-        Route::post('/', [FrameController::class, 'store'])->name('store');
-        Route::post('/order', [FrameController::class, 'updateOrder'])->name('order');
-        Route::get('/category/{id}/frames', [FrameController::class, 'categoryFrames'])->name('category-frames');
-        Route::get('/{id}/edit', [FrameController::class, 'edit'])->name('edit');
-        Route::put('/{id}', [FrameController::class, 'update'])->name('update');
-        Route::delete('/{id}', [FrameController::class, 'destroy'])->name('destroy');
+        Route::get('/', [Ngd001FrameController::class, 'index'])->name('index');
+        Route::get('/create', [Ngd001FrameController::class, 'create'])->name('create');
+        Route::post('/', [Ngd001FrameController::class, 'store'])->name('store');
+        Route::post('/order', [Ngd001FrameController::class, 'updateOrder'])->name('order');
+        Route::get('/category/{id}/frames', [Ngd001FrameController::class, 'categoryFrames'])->name('category-frames');
+        Route::get('/{id}/edit', [Ngd001FrameController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [Ngd001FrameController::class, 'update'])->name('update');
+        Route::delete('/{id}', [Ngd001FrameController::class, 'destroy'])->name('destroy');
     });
 
     // Milestone Frames (gender + month)
     Route::prefix('milestone-frames')->name('milestone-frames.')->group(function () {
-        Route::get('/', [MilestoneFrameController::class, 'index'])->name('index');
-        Route::get('/create', [MilestoneFrameController::class, 'create'])->name('create');
-        Route::post('/', [MilestoneFrameController::class, 'store'])->name('store');
-        Route::post('/order', [MilestoneFrameController::class, 'updateOrder'])->name('order');
-        Route::get('/{id}/frames', [MilestoneFrameController::class, 'recordFrames'])->name('frames');
-        Route::get('/{id}/edit', [MilestoneFrameController::class, 'edit'])->name('edit');
-        Route::put('/{id}', [MilestoneFrameController::class, 'update'])->name('update');
-        Route::delete('/{id}', [MilestoneFrameController::class, 'destroy'])->name('destroy');
+        Route::get('/', [Ngd001MilestoneFrameController::class, 'index'])->name('index');
+        Route::get('/create', [Ngd001MilestoneFrameController::class, 'create'])->name('create');
+        Route::post('/', [Ngd001MilestoneFrameController::class, 'store'])->name('store');
+        Route::post('/order', [Ngd001MilestoneFrameController::class, 'updateOrder'])->name('order');
+        Route::get('/{id}/frames', [Ngd001MilestoneFrameController::class, 'recordFrames'])->name('frames');
+        Route::get('/{id}/edit', [Ngd001MilestoneFrameController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [Ngd001MilestoneFrameController::class, 'update'])->name('update');
+        Route::delete('/{id}', [Ngd001MilestoneFrameController::class, 'destroy'])->name('destroy');
     });
 
     // API documentation

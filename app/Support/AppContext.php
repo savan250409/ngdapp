@@ -15,15 +15,18 @@ class AppContext
 
     public static function set(?string $code): void
     {
+        if ($code === '001') {
+            $code = 'ngd001';
+        }
         self::$code = $code ?: null;
     }
 
     public static function code(): ?string
     {
-        return self::$code;
+        return (self::$code === '001' || empty(self::$code)) ? 'ngd001' : self::$code;
     }
 
-    /** All app codes (for the super-admin switcher). */
+    /** All active apps (for the super-admin switcher). */
     public static function all()
     {
         return App::where('status', 1)->orderBy('code')->get();

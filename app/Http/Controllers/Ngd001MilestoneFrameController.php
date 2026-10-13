@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Frame;
-use App\Models\FrameCategory;
+use App\Models\Ngd001MilestoneFrame;
 use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Validation\Rule;
 
-class FrameController extends Controller
+class Ngd001MilestoneFrameController extends Controller
 {
     /** Save an uploaded image under a guaranteed-unique, cache-busting name. */
     private function saveImage($file, string $destPath): string
@@ -30,14 +30,14 @@ class FrameController extends Controller
         return $name;
     }
 
-    private function frameDir(FrameCategory $category): string
+    private function frameDir($gender, $month): string
     {
-        return public_path('upload/' . AppContext::code() . '/frame/' . $category->category_name . '/frame');
+        return public_path('upload/' . (AppContext::code() ?: 'ngd001') . '/milestone_frame/' . Ngd001MilestoneFrame::genderSlug($gender) . '/' . (int) $month . '/frame');
     }
 
-    private function thumbDir(FrameCategory $category): string
+    private function thumbDir($gender, $month): string
     {
-        return public_path('upload/' . AppContext::code() . '/frame/' . $category->category_name . '/frame_thumbnail');
+        return public_path('upload/' . (AppContext::code() ?: 'ngd001') . '/milestone_frame/' . Ngd001MilestoneFrame::genderSlug($gender) . '/' . (int) $month . '/frame_thumbnail');
     }
 
     private function moveFile(string $from, string $to): void
@@ -62,19 +62,27 @@ class FrameController extends Controller
         return is_array($decoded) ? $decoded : [];
     }
 
-    /**
-     * Build the ordered frames array from the request, honouring the drag order
-     * (frame_order = ordered list of row keys). Handles kept frames (optionally
-     * replaced or moved across categories) and brand-new uploads, interleaved.
-     */
-    private function assembleFrames(Request $request, FrameCategory $category, ?FrameCategory $old = null): array
+    private function usedCombos($exceptId = null): array
     {
-        $old = $old ?: $category;
-        $frameDest   = $this->frameDir($category);
-        $thumbDest   = $this->thumbDir($category);
-        $oldFrameDir = $this->frameDir($old);
-        $oldThumbDir = $this->thumbDir($old);
-        $categoryChanged = $old->id !== $category->id;
+        return Ngd001MilestoneFrame::when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->get(['gender', 'month'])
+            ->map(fn ($r) => $r->gender . '-' . $r->month)
+            ->toArray();
+    }
+
+    /**
+     * Build the ordered frames array from the request, honouring the drag order.
+     */
+    private function assembleFrames(Request $request, $gender, $month, $oldGender = null, $oldMonth = null): array
+    {
+        $oldGender = $oldGender ?? $gender;
+        $oldMonth  = $oldMonth ?? $month;
+
+        $frameDest   = $this->frameDir($gender, $month);
+        $thumbDest   = $this->thumbDir($gender, $month);
+        $oldFrameDir = $this->frameDir($oldGender, $oldMonth);
+        $oldThumbDir = $this->thumbDir($oldGender, $oldMonth);
+        $moved       = ((int) $oldGender !== (int) $gender) || ((int) $oldMonth !== (int) $month);
 
         $order          = $this->decodeOrder($request->input('frame_order'));
         $keepImagePaths = $request->input('keep_image_paths', []);
@@ -98,11 +106,12 @@ class FrameController extends Controller
                 $thumbPath = $keepThumbPaths[$key] ?? null;
 
                 if (! empty($keepImages[$key])) {
-                    if (File::exists($oldFrameDir . '/' . $imagePath)) {
-                        File::delete($oldFrameDir . '/' . $imagePath);
+                    $oldFull = $oldFrameDir . '/' . $imagePath;
+                    if (File::exists($oldFull)) {
+                        File::delete($oldFull);
                     }
                     $imagePath = $this->saveImage($keepImages[$key], $frameDest);
-                } elseif ($categoryChanged) {
+                } elseif ($moved) {
                     $this->moveFile($oldFrameDir . '/' . $imagePath, $frameDest . '/' . $imagePath);
                 }
 
@@ -111,7 +120,7 @@ class FrameController extends Controller
                         File::delete($oldThumbDir . '/' . $thumbPath);
                     }
                     $thumbPath = $this->saveImage($keepThumbs[$key], $thumbDest);
-                } elseif ($categoryChanged && ! empty($thumbPath)) {
+                } elseif ($moved && ! empty($thumbPath)) {
                     $this->moveFile($oldThumbDir . '/' . $thumbPath, $thumbDest . '/' . $thumbPath);
                 }
 
@@ -141,26 +150,27 @@ class FrameController extends Controller
 
     public function index()
     {
-        $categories      = FrameCategory::all();
-        $usedCategoryIds = Frame::pluck('category_id')->toArray();
-        $query           = Frame::with('category')->orderBy('id', 'DESC');
+        $genders = Ngd001MilestoneFrame::GENDERS;
+        $query   = Ngd001MilestoneFrame::orderBy('gender')->orderBy('month');
 
-        if ($search = request('search')) {
-            $query->whereHas('category', fn ($q) => $q->where('category_name', 'like', "%{$search}%"));
+        if (($g = request('gender_filter')) !== null && $g !== '') {
+            $query->where('gender', $g);
         }
-        if ($categoryFilter = request('category_filter')) {
-            $query->where('category_id', $categoryFilter);
+        if (($m = request('month_filter')) !== null && $m !== '') {
+            $query->where('month', $m);
         }
 
         $perPage = request('per_page', 10);
         $frames  = $query->paginate($perPage)->appends([
-            'search'          => request('search'),
-            'per_page'        => $perPage,
-            'category_filter' => request('category_filter'),
+            'per_page'      => $perPage,
+            'gender_filter' => request('gender_filter'),
+            'month_filter'  => request('month_filter'),
         ]);
 
+        $allRecords = Ngd001MilestoneFrame::orderBy('gender')->orderBy('month')->get();
+
         if (request()->ajax()) {
-            $view = view('frames.index', compact('categories', 'frames', 'usedCategoryIds'))->renderSections();
+            $view = view('ngd001.milestone-frames.index', compact('genders', 'frames', 'allRecords'))->renderSections();
 
             return response()->json([
                 'table'      => $view['table'] ?? '',
@@ -169,32 +179,40 @@ class FrameController extends Controller
             ]);
         }
 
-        return view('frames.index', compact('categories', 'frames', 'usedCategoryIds'));
+        return view('ngd001.milestone-frames.index', compact('genders', 'frames', 'allRecords'));
     }
 
     public function create()
     {
-        $categories      = FrameCategory::all();
-        $usedCategoryIds = Frame::pluck('category_id')->toArray();
+        $genders    = Ngd001MilestoneFrame::GENDERS;
+        $months     = range(1, 12);
+        $usedCombos = $this->usedCombos();
 
-        return view('frames.form', compact('categories', 'usedCategoryIds'));
+        return view('ngd001.milestone-frames.form', compact('genders', 'months', 'usedCombos'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'category_id'      => ['required', 'exists:frame_categories,id', 'unique:frames,category_id'],
+            'gender'           => ['required', Rule::in(array_keys(Ngd001MilestoneFrame::GENDERS))],
+            'month'            => ['required', 'integer', 'between:1,12'],
             'frame_order'      => ['required', 'string'],
             'new_images'       => ['required', 'array', 'min:1'],
             'new_images.*'     => ['required', 'image', 'mimes:webp', 'max:20048'],
             'new_thumbnails.*' => ['nullable', 'image', 'mimes:webp', 'max:20048'],
-        ], ['category_id.unique' => 'A frame record for this category already exists.']);
+        ]);
 
-        $category = FrameCategory::findOrFail($request->category_id);
+        if (Ngd001MilestoneFrame::where('gender', $request->gender)->where('month', $request->month)->exists()) {
+            $msg = 'A milestone frame record for this gender and month already exists.';
+
+            return $request->ajax()
+                ? response()->json(['message' => $msg, 'errors' => ['gender' => [$msg]]], 422)
+                : back()->withErrors(['gender' => $msg])->withInput();
+        }
 
         DB::beginTransaction();
         try {
-            $framesArray = $this->assembleFrames($request, $category, $category);
+            $framesArray = $this->assembleFrames($request, $request->gender, $request->month);
             if (empty($framesArray)) {
                 DB::rollBack();
                 if ($request->ajax()) {
@@ -204,7 +222,11 @@ class FrameController extends Controller
                 return back()->withInput()->withErrors(['new_images' => 'Add at least one frame.']);
             }
 
-            Frame::create(['category_id' => $category->id, 'frames' => $framesArray]);
+            Ngd001MilestoneFrame::create([
+                'gender' => $request->gender,
+                'month'  => $request->month,
+                'frames' => $framesArray,
+            ]);
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -212,41 +234,54 @@ class FrameController extends Controller
         }
 
         return $request->ajax()
-            ? response()->json(['success' => true, 'message' => 'Frame(s) added successfully!'])
-            : redirect()->route('frames.index')->with('success', 'Frame(s) added successfully!');
+            ? response()->json(['success' => true, 'message' => 'Milestone frame(s) added successfully!'])
+            : redirect()->route('milestone-frames.index')->with('success', 'Milestone frame(s) added successfully!');
     }
 
     public function edit($id)
     {
-        $frame           = Frame::with('category')->findOrFail($id);
-        $categories      = FrameCategory::all();
-        $usedCategoryIds = Frame::where('id', '!=', $id)->pluck('category_id')->toArray();
+        $frame      = Ngd001MilestoneFrame::findOrFail($id);
+        $genders    = Ngd001MilestoneFrame::GENDERS;
+        $months     = range(1, 12);
+        $usedCombos = $this->usedCombos($id);
 
-        return view('frames.form', compact('frame', 'categories', 'usedCategoryIds'));
+        return view('ngd001.milestone-frames.form', compact('frame', 'genders', 'months', 'usedCombos'));
     }
 
     public function update(Request $request, $id)
     {
-        $frame = Frame::with('category')->findOrFail($id);
+        $frame = Ngd001MilestoneFrame::findOrFail($id);
 
         $request->validate([
-            'category_id'       => ['required', 'exists:frame_categories,id', 'unique:frames,category_id,' . $id . ',id'],
+            'gender'            => ['required', Rule::in(array_keys(Ngd001MilestoneFrame::GENDERS))],
+            'month'             => ['required', 'integer', 'between:1,12'],
             'frame_order'       => ['required', 'string'],
             'keep_images.*'     => ['nullable', 'image', 'mimes:webp', 'max:20048'],
             'keep_thumbnails.*' => ['nullable', 'image', 'mimes:webp', 'max:20048'],
             'new_images.*'      => ['nullable', 'image', 'mimes:webp', 'max:20048'],
             'new_thumbnails.*'  => ['nullable', 'image', 'mimes:webp', 'max:20048'],
-        ], ['category_id.unique' => 'A frame record for this category already exists.']);
+        ]);
 
-        $oldCategory = $frame->category;
-        $newCategory = FrameCategory::findOrFail($request->category_id);
+        $dup = Ngd001MilestoneFrame::where('gender', $request->gender)
+            ->where('month', $request->month)
+            ->where('id', '!=', $id)
+            ->exists();
+        if ($dup) {
+            $msg = 'A milestone frame record for this gender and month already exists.';
+
+            return $request->ajax()
+                ? response()->json(['message' => $msg, 'errors' => ['gender' => [$msg]]], 422)
+                : back()->withErrors(['gender' => $msg])->withInput();
+        }
+
+        $oldGender = $frame->gender;
+        $oldMonth  = $frame->month;
 
         DB::beginTransaction();
         try {
-            // Delete files for existing frames that were removed (not in the kept set).
             $keptImageSet = array_values(array_filter($request->input('keep_image_paths', [])));
-            $oldFrameDir  = $this->frameDir($oldCategory);
-            $oldThumbDir  = $this->thumbDir($oldCategory);
+            $oldFrameDir  = $this->frameDir($oldGender, $oldMonth);
+            $oldThumbDir  = $this->thumbDir($oldGender, $oldMonth);
 
             foreach ($frame->frames ?? [] as $existing) {
                 if (! in_array($existing['image_path'], $keptImageSet, true)) {
@@ -259,19 +294,24 @@ class FrameController extends Controller
                 }
             }
 
-            $framesArray = $this->assembleFrames($request, $newCategory, $oldCategory);
+            $framesArray = $this->assembleFrames($request, $request->gender, $request->month, $oldGender, $oldMonth);
             if (empty($framesArray)) {
                 DB::rollBack();
                 if ($request->ajax()) {
-                    return response()->json(['message' => 'A frame record must have at least one frame.', 'errors' => ['frame_order' => ['A frame record must have at least one frame.']]], 422);
+                    return response()->json(['message' => 'A record must have at least one frame.', 'errors' => ['frame_order' => ['A record must have at least one frame.']]], 422);
                 }
 
-                return back()->withInput()->withErrors(['frame_order' => 'A frame record must have at least one frame.']);
+                return back()->withInput()->withErrors(['frame_order' => 'A record must have at least one frame.']);
             }
 
-            $frame->update(['category_id' => $newCategory->id, 'frames' => $framesArray]);
+            $frame->update([
+                'gender' => $request->gender,
+                'month'  => $request->month,
+                'frames' => $framesArray,
+            ]);
 
-            if ($oldCategory->id !== $newCategory->id && Frame::where('category_id', $oldCategory->id)->count() < 1) {
+            $moved = ((int) $oldGender !== (int) $request->gender) || ((int) $oldMonth !== (int) $request->month);
+            if ($moved) {
                 if (File::exists($oldFrameDir)) {
                     File::deleteDirectory($oldFrameDir);
                 }
@@ -287,52 +327,45 @@ class FrameController extends Controller
         }
 
         return $request->ajax()
-            ? response()->json(['success' => true, 'message' => 'Frame record updated successfully!'])
-            : redirect()->route('frames.index')->with('success', 'Frame record updated successfully!');
+            ? response()->json(['success' => true, 'message' => 'Milestone frame record updated successfully!'])
+            : redirect()->route('milestone-frames.index')->with('success', 'Milestone frame record updated successfully!');
     }
 
-    /**
-     * JSON list of a category's frames (ordered), for the Index reorder popup.
-     */
-    public function categoryFrames($id)
+    /** JSON list of a record's frames (ordered), for the Index / View-more popups. */
+    public function recordFrames($id)
     {
-        $category = FrameCategory::findOrFail($id);
-        $record   = Frame::where('category_id', $id)->first();
-        $cat      = rawurlencode($category->category_name);
-        $appBase  = 'upload/' . AppContext::code() . '/frame/' . $cat;
+        $record = Ngd001MilestoneFrame::findOrFail($id);
+        $base   = 'upload/' . (AppContext::code() ?: 'ngd001') . '/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
 
         $frames = collect($record->frames ?? [])
             ->sortBy('frame_index')
             ->values()
-            ->map(function ($f) use ($appBase) {
-                $thumb     = $f['thumbnail_path'] ?? null;
-                $frameUrl  = url($appBase . '/frame/' . rawurlencode($f['image_path']));
-                $thumbUrl  = $thumb ? url($appBase . '/frame_thumbnail/' . rawurlencode($thumb)) : null;
+            ->map(function ($f) use ($base) {
+                $thumb    = $f['thumbnail_path'] ?? null;
+                $frameUrl = url($base . '/frame/' . rawurlencode($f['image_path']));
+                $thumbUrl = $thumb ? url($base . '/frame_thumbnail/' . rawurlencode($thumb)) : null;
 
                 return [
                     'image_path'    => $f['image_path'],
                     'frame_url'     => $frameUrl,
                     'thumbnail_url' => $thumbUrl,
-                    'thumb_url'     => $thumbUrl ?: $frameUrl, // display helper (thumb, else full)
+                    'thumb_url'     => $thumbUrl ?: $frameUrl,
                 ];
             });
 
         return response()->json(['frames' => $frames]);
     }
 
-    /**
-     * Save the drag-and-drop order of frames within one category (Index popup).
-     * order = ordered list of image_path values.
-     */
+    /** Save the drag-and-drop order of frames within one record (Index popup). */
     public function updateOrder(Request $request)
     {
         $request->validate([
-            'category_id' => ['required', 'exists:frame_categories,id'],
-            'order'       => ['required', 'array', 'min:1'],
-            'order.*'     => ['string'],
+            'id'      => ['required', 'exists:' . Ngd001MilestoneFrame::tableName() . ',id'],
+            'order'   => ['required', 'array', 'min:1'],
+            'order.*' => ['string'],
         ]);
 
-        $record = Frame::where('category_id', $request->category_id)->firstOrFail();
+        $record = Ngd001MilestoneFrame::findOrFail($request->id);
         $byPath = collect($record->frames ?? [])->keyBy('image_path');
 
         $ordered = [];
@@ -345,7 +378,6 @@ class FrameController extends Controller
                 $byPath->forget($imagePath);
             }
         }
-        // Safety: append any frames not referenced in the order payload.
         foreach ($byPath as $f) {
             $f['frame_index'] = $i++;
             $ordered[] = $f;
@@ -358,10 +390,9 @@ class FrameController extends Controller
 
     public function destroy($id)
     {
-        $frame     = Frame::with('category')->findOrFail($id);
-        $category  = $frame->category;
-        $frameDest = $this->frameDir($category);
-        $thumbDest = $this->thumbDir($category);
+        $frame     = Ngd001MilestoneFrame::findOrFail($id);
+        $frameDest = $this->frameDir($frame->gender, $frame->month);
+        $thumbDest = $this->thumbDir($frame->gender, $frame->month);
 
         foreach ($frame->frames ?? [] as $f) {
             if (File::exists($frameDest . '/' . $f['image_path'])) {
@@ -374,15 +405,17 @@ class FrameController extends Controller
 
         $frame->delete();
 
-        if (Frame::where('category_id', $category->id)->count() < 1) {
-            if (File::exists($frameDest)) {
-                File::deleteDirectory($frameDest);
-            }
-            if (File::exists($thumbDest)) {
-                File::deleteDirectory($thumbDest);
-            }
+        if (File::exists($frameDest)) {
+            File::deleteDirectory($frameDest);
+        }
+        if (File::exists($thumbDest)) {
+            File::deleteDirectory($thumbDest);
         }
 
-        return redirect()->route('frames.index')->with('success', 'Frame record deleted successfully!');
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Milestone frame record deleted successfully!']);
+        }
+
+        return redirect()->route('milestone-frames.index')->with('success', 'Milestone frame record deleted successfully!');
     }
 }

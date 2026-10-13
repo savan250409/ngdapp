@@ -259,7 +259,7 @@
                     <div class="dropdown">
                         <button class="btn btn-light border d-flex align-items-center gap-2 dropdown-toggle" data-bs-toggle="dropdown" style="border-radius:9px;color:var(--ink);">
                             <i class="bi bi-grid-3x3-gap-fill text-primary"></i>
-                            <span class="fw-semibold small">{{ $appCode ?? '—' }}</span>
+                            <span class="fw-semibold small">{{ ($appCode && $appCode !== '001') ? $appCode : 'ngd001' }}</span>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                             <li><h6 class="dropdown-header">Switch app</h6></li>
@@ -273,7 +273,7 @@
                         </ul>
                     </div>
                 @elseif(!empty($appCode))
-                    <span class="badge-pill" style="background:var(--brand-50);color:var(--brand-600);font-weight:700" title="Your app"><i class="bi bi-grid-3x3-gap-fill me-1"></i>{{ $appCode }}</span>
+                    <span class="badge-pill" style="background:var(--brand-50);color:var(--brand-600);font-weight:700" title="Your app"><i class="bi bi-grid-3x3-gap-fill me-1"></i>{{ ($appCode && $appCode !== '001') ? $appCode : 'ngd001' }}</span>
                 @endif
                 <button class="icon-btn" id="themeToggle" title="Toggle light / dark"><i class="bi bi-moon-stars" id="themeIcon"></i></button>
                 <div class="dropdown">

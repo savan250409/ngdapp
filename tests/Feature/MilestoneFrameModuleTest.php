@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\App;
-use App\Models\MilestoneFrame;
+use App\Models\Ngd001MilestoneFrame;
 use App\Models\User;
 use App\Support\AppContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,7 +40,7 @@ class MilestoneFrameModuleTest extends TestCase
 
     private function base(int $gender, int $month): string
     {
-        $dir = public_path('upload/' . $this->appCode . '/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . $month);
+        $dir = public_path('upload/' . $this->appCode . '/milestone_frame/' . Ngd001MilestoneFrame::genderSlug($gender) . '/' . $month);
         $this->dirs[] = $dir;
 
         return $dir;
@@ -70,7 +70,7 @@ class MilestoneFrameModuleTest extends TestCase
             'new_thumbnails' => ['n0' => $this->webp('ta.webp')],
         ])->assertRedirect();
 
-        $rec = MilestoneFrame::where('gender', 1)->where('month', 1)->first();
+        $rec = Ngd001MilestoneFrame::where('gender', 1)->where('month', 1)->first();
         $this->assertNotNull($rec);
         $this->assertCount(2, $rec->frames);
         $this->assertSame(0, $rec->frames[0]['frame_index']);
@@ -118,7 +118,7 @@ class MilestoneFrameModuleTest extends TestCase
             'new_images'  => ['n0' => $this->webp('x.webp')],
         ])->assertRedirect();
 
-        $rec  = MilestoneFrame::where('gender', 1)->where('month', 2)->first();
+        $rec  = Ngd001MilestoneFrame::where('gender', 1)->where('month', 2)->first();
         $path = $rec->frames[0]['image_path'];
         $this->assertTrue(File::exists(public_path("upload/ngd001/milestone_frame/boy/2/frame/{$path}")));
 
@@ -139,7 +139,7 @@ class MilestoneFrameModuleTest extends TestCase
 
     public function test_frame_reorder_reflects_in_api(): void
     {
-        $rec = MilestoneFrame::create(['gender' => 1, 'month' => 3, 'frames' => [
+        $rec = Ngd001MilestoneFrame::create(['gender' => 1, 'month' => 3, 'frames' => [
             ['image_path' => 'a.webp', 'frame_index' => 0, 'thumbnail_path' => null],
             ['image_path' => 'b.webp', 'frame_index' => 1, 'thumbnail_path' => null],
             ['image_path' => 'c.webp', 'frame_index' => 2, 'thumbnail_path' => null],
@@ -160,7 +160,7 @@ class MilestoneFrameModuleTest extends TestCase
 
     public function test_api_encodes_spaces(): void
     {
-        MilestoneFrame::create(['gender' => 2, 'month' => 7, 'frames' => [
+        Ngd001MilestoneFrame::create(['gender' => 2, 'month' => 7, 'frames' => [
             ['image_path' => 'frame one.webp', 'frame_index' => 0, 'thumbnail_path' => 'thumb one.webp'],
         ]]);
 
@@ -175,7 +175,7 @@ class MilestoneFrameModuleTest extends TestCase
 
     public function test_ajax_list_and_delete(): void
     {
-        MilestoneFrame::create(['gender' => 1, 'month' => 9, 'frames' => [
+        Ngd001MilestoneFrame::create(['gender' => 1, 'month' => 9, 'frames' => [
             ['image_path' => 'z.webp', 'frame_index' => 0, 'thumbnail_path' => null],
         ]]);
 
@@ -183,10 +183,10 @@ class MilestoneFrameModuleTest extends TestCase
             ->assertStatus(200)
             ->assertJsonStructure(['table', 'pagination', 'total']);
 
-        $rec = MilestoneFrame::where('gender', 1)->where('month', 9)->first();
+        $rec = Ngd001MilestoneFrame::where('gender', 1)->where('month', 9)->first();
         $this->delete("/milestone-frames/{$rec->id}", [], ['X-Requested-With' => 'XMLHttpRequest'])
             ->assertStatus(200)
             ->assertJsonPath('success', true);
-        $this->assertDatabaseMissing('milestone_frames', ['id' => $rec->id]);
+        $this->assertDatabaseMissing(Ngd001MilestoneFrame::tableName(), ['id' => $rec->id]);
     }
 }

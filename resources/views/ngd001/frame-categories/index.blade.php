@@ -3,9 +3,10 @@
 @section('breadcrumb', 'Frames Module / ')
 
 @php
-    $thumbUrl = function ($cat) use ($appCode) {
+    $effectiveApp = ($appCode && $appCode !== '001') ? $appCode : 'ngd001';
+    $thumbUrl = function ($cat) use ($effectiveApp) {
         if (! $cat->category_image) return null;
-        return url('upload/' . $appCode . '/frame/' . rawurlencode($cat->category_name) . '/category_thumbnail_frame/' . rawurlencode($cat->category_image));
+        return url('upload/' . $effectiveApp . '/frame/' . rawurlencode($cat->category_name) . '/category_thumbnail_frame/' . rawurlencode($cat->category_image));
     };
 @endphp
 

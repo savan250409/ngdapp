@@ -2,16 +2,13 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\BelongsToApp;
 use Illuminate\Database\Eloquent\Model;
 
-class MilestoneFrame extends Model
+class Ngd001MilestoneFrame extends Model
 {
-    use BelongsToApp;
+    protected $table = 'ngd001_milestone_frame';
 
-    protected $table = 'milestone_frames';
-
-    protected $fillable = ['app_code', 'gender', 'month', 'frames'];
+    protected $fillable = ['gender', 'month', 'frames'];
 
     protected $casts = [
         'frames' => 'array', // JSON <-> PHP array
@@ -20,12 +17,16 @@ class MilestoneFrame extends Model
     /** 1 = boy, 2 = girl */
     public const GENDERS = [1 => 'Boy', 2 => 'Girl'];
 
+    public static function tableName(): string
+    {
+        return 'ngd001_milestone_frame';
+    }
+
     public function getGenderLabelAttribute(): string
     {
         return self::GENDERS[$this->gender] ?? 'Unknown';
     }
 
-    /** Folder-safe gender slug used in the upload path (boy / girl). */
     public function getGenderSlugAttribute(): string
     {
         return strtolower(self::GENDERS[$this->gender] ?? 'unknown');

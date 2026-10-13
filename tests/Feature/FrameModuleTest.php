@@ -3,8 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\App;
-use App\Models\Frame;
-use App\Models\FrameCategory;
+use App\Models\Ngd001Frame;
+use App\Models\Ngd001FrameCategory;
 use App\Models\User;
 use App\Support\AppContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,7 +71,7 @@ class FrameModuleTest extends TestCase
         ]);
         $res->assertRedirect();
 
-        $category = FrameCategory::where('category_name', $name)->first();
+        $category = Ngd001FrameCategory::where('category_name', $name)->first();
         $this->assertNotNull($category);
         $this->assertNotNull($category->category_image);
         $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$name}/category_thumbnail_frame/{$category->category_image}")));
@@ -85,7 +85,7 @@ class FrameModuleTest extends TestCase
         ]);
         $res->assertRedirect();
 
-        $frame = Frame::where('category_id', $category->id)->first();
+        $frame = Ngd001Frame::where('category_id', $category->id)->first();
         $this->assertNotNull($frame);
         $this->assertCount(2, $frame->frames);
         $this->assertSame(0, $frame->frames[0]['frame_index']);
@@ -164,13 +164,13 @@ class FrameModuleTest extends TestCase
         // 10. Delete the category removes folder + cascades the frame record.
         $this->delete("/frame-categories/{$category->id}")->assertRedirect();
         $this->assertFalse(File::exists(public_path("upload/ngd001/frame/{$newName}")));
-        $this->assertDatabaseMissing('frames', ['category_id' => $category->id]);
-        $this->assertDatabaseMissing('frame_categories', ['id' => $category->id]);
+        $this->assertDatabaseMissing(Ngd001Frame::tableName(), ['category_id' => $category->id]);
+        $this->assertDatabaseMissing(Ngd001FrameCategory::tableName(), ['id' => $category->id]);
     }
 
     public function test_categories_ajax_list_renders(): void
     {
-        FrameCategory::create(['category_name' => 'Ajax ' . uniqid(), 'status' => 1]);
+        Ngd001FrameCategory::create(['category_name' => 'Ajax ' . uniqid(), 'status' => 1]);
 
         // The AJAX branch must render the full view (incl. the Index popup that needs
         // $allCategories) without error — this is what the reload() after delete calls.
@@ -182,21 +182,21 @@ class FrameModuleTest extends TestCase
 
     public function test_category_delete_via_ajax_returns_json(): void
     {
-        $c = FrameCategory::create(['category_name' => 'DelAjax ' . uniqid(), 'status' => 1]);
+        $c = Ngd001FrameCategory::create(['category_name' => 'DelAjax ' . uniqid(), 'status' => 1]);
 
         $this->delete("/frame-categories/{$c->id}", [], ['X-Requested-With' => 'XMLHttpRequest'])
             ->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        $this->assertDatabaseMissing('frame_categories', ['id' => $c->id]);
+        $this->assertDatabaseMissing(Ngd001FrameCategory::tableName(), ['id' => $c->id]);
     }
 
     public function test_category_order_reflects_in_api(): void
     {
         // Three active categories, each with a frame so they appear in the API.
         $make = function (string $name, int $order) {
-            $c = FrameCategory::create(['category_name' => $name, 'status' => 1, 'sort_order' => $order]);
-            Frame::create(['category_id' => $c->id, 'frames' => [
+            $c = Ngd001FrameCategory::create(['category_name' => $name, 'status' => 1, 'sort_order' => $order]);
+            Ngd001Frame::create(['category_id' => $c->id, 'frames' => [
                 ['image_path' => 'x.webp', 'frame_index' => 0, 'thumbnail_path' => null, 'count' => 0, 'is_pro' => false],
             ]]);
             return $c;
@@ -229,7 +229,7 @@ class FrameModuleTest extends TestCase
         $name = 'EditCat ' . uniqid();
         $this->track($name);
 
-        $category = FrameCategory::create(['category_name' => $name, 'status' => 1]);
+        $category = Ngd001FrameCategory::create(['category_name' => $name, 'status' => 1]);
 
         // Seed a record with 2 frames via the store endpoint.
         $this->post('/frames', [
@@ -239,7 +239,7 @@ class FrameModuleTest extends TestCase
             'new_thumbnails' => ['n0' => $this->webp('t1.webp')],
         ])->assertRedirect();
 
-        $frame    = Frame::where('category_id', $category->id)->first();
+        $frame    = Ngd001Frame::where('category_id', $category->id)->first();
         $original = $frame->frames;
         $keepPath = $original[0]['image_path'];   // keep frame #0
         $keepThumb = $original[0]['thumbnail_path'];
@@ -273,8 +273,8 @@ class FrameModuleTest extends TestCase
 
     public function test_frames_reorder_within_category_reflects_in_api(): void
     {
-        $c = FrameCategory::create(['category_name' => 'Reorder ' . uniqid(), 'status' => 1]);
-        Frame::create(['category_id' => $c->id, 'frames' => [
+        $c = Ngd001FrameCategory::create(['category_name' => 'Reorder ' . uniqid(), 'status' => 1]);
+        Ngd001Frame::create(['category_id' => $c->id, 'frames' => [
             ['image_path' => 'a.webp', 'frame_index' => 0, 'thumbnail_path' => null],
             ['image_path' => 'b.webp', 'frame_index' => 1, 'thumbnail_path' => null],
             ['image_path' => 'c.webp', 'frame_index' => 2, 'thumbnail_path' => null],
@@ -284,7 +284,7 @@ class FrameModuleTest extends TestCase
         $this->post('/frames/order', ['category_id' => $c->id, 'order' => ['c.webp', 'a.webp', 'b.webp']])
             ->assertJsonPath('success', true);
 
-        $frames = Frame::where('category_id', $c->id)->first()->frames;
+        $frames = Ngd001Frame::where('category_id', $c->id)->first()->frames;
         $this->assertSame('c.webp', $frames[0]['image_path']);
         $this->assertSame(0, $frames[0]['frame_index']);
         $this->assertSame('a.webp', $frames[1]['image_path']);
@@ -304,12 +304,12 @@ class FrameModuleTest extends TestCase
 
     public function test_api_urls_encode_spaces_as_percent20(): void
     {
-        $cat = FrameCategory::create([
+        $cat = Ngd001FrameCategory::create([
             'category_name'  => 'Happy New Year',
             'category_image' => 'cat thumb.webp',
             'status'         => 1,
         ]);
-        Frame::create(['category_id' => $cat->id, 'frames' => [
+        Ngd001Frame::create(['category_id' => $cat->id, 'frames' => [
             ['image_path' => 'frame one.webp', 'frame_index' => 0, 'thumbnail_path' => 'thumb one.webp'],
         ]]);
 
@@ -345,14 +345,14 @@ class FrameModuleTest extends TestCase
 
     public function test_api_excludes_active_categories_without_frames(): void
     {
-        $withFrames = FrameCategory::create(['category_name' => 'Has ' . uniqid(), 'status' => 1]);
-        Frame::create(['category_id' => $withFrames->id, 'frames' => [
+        $withFrames = Ngd001FrameCategory::create(['category_name' => 'Has ' . uniqid(), 'status' => 1]);
+        Ngd001Frame::create(['category_id' => $withFrames->id, 'frames' => [
             ['image_path' => 'x.webp', 'frame_index' => 0, 'thumbnail_path' => null],
         ]]);
 
         // Active category but empty frame record -> must be excluded.
-        $empty = FrameCategory::create(['category_name' => 'Empty ' . uniqid(), 'status' => 1]);
-        Frame::create(['category_id' => $empty->id, 'frames' => []]);
+        $empty = Ngd001FrameCategory::create(['category_name' => 'Empty ' . uniqid(), 'status' => 1]);
+        Ngd001Frame::create(['category_id' => $empty->id, 'frames' => []]);
 
         $res = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
         $res->assertStatus(200);

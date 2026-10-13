@@ -1,22 +1,22 @@
 @extends('layouts.admin')
 @php $isEdit = isset($frame); @endphp
-@section('title', $isEdit ? 'Edit Frame Record' : 'Add Frame Record')
-@section('breadcrumb', 'Frames Module / Frames / ')
+@section('title', $isEdit ? 'Edit Milestone Record' : 'Add Milestone Record')
+@section('breadcrumb', 'Frames Module / Milestone Frames / ')
 
 @php
-    $frameImgUrl = function ($categoryName, $f, $which = 'thumb') use ($appCode) {
-        $cat = rawurlencode($categoryName);
+    $effectiveApp = ($appCode && $appCode !== '001') ? $appCode : 'ngd001';
+    $mUrl = function ($record, $f, $which = 'thumb') use ($effectiveApp) {
+        $base = 'upload/' . $effectiveApp . '/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
         if ($which === 'thumb' && ! empty($f['thumbnail_path'])) {
-            return url('upload/' . $appCode . '/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
+            return url($base . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
         }
-        return url('upload/' . $appCode . '/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
+        return url($base . '/frame/' . rawurlencode($f['image_path']));
     };
     $existing = $isEdit ? collect($frame->frames ?? [])->sortBy('frame_index')->values() : collect();
 @endphp
 
 @push('styles')
 <style>
-    #frameRows .frame-row { position:relative; }
     #frameRows .drag-handle { cursor:grab; color:var(--muted); font-size:1.2rem; }
     #frameRows .drag-handle:active { cursor:grabbing; }
     #frameRows .pos { width:26px; height:26px; flex-shrink:0; border-radius:7px; background:var(--brand-50); color:var(--brand-600); font-size:.78rem; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
@@ -28,38 +28,41 @@
 @section('content')
 <div class="page-head">
     <div>
-        <h1>{{ $isEdit ? 'Edit Frame Record' : 'Add Frame Record' }}</h1>
-        <p>Add frames, then <b>drag</b> them to set the order (top = first in the API).</p>
+        <h1>{{ $isEdit ? 'Edit Milestone Record' : 'Add Milestone Record' }}</h1>
+        <p>Pick a gender &amp; month, add frames, then <b>drag</b> to set the order.</p>
     </div>
-    <a href="{{ route('frames.index') }}" class="btn btn-light border"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    <a href="{{ route('milestone-frames.index') }}" class="btn btn-light border"><i class="bi bi-arrow-left me-1"></i> Back</a>
 </div>
 
 <form id="frameForm" method="POST" enctype="multipart/form-data"
-      action="{{ $isEdit ? route('frames.update', $frame->id) : route('frames.store') }}">
+      action="{{ $isEdit ? route('milestone-frames.update', $frame->id) : route('milestone-frames.store') }}">
     @csrf
     @if($isEdit) @method('PUT') @endif
     <input type="hidden" name="frame_order" id="frameOrder">
 
     <div class="card mb-3">
         <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Category <span class="text-danger">*</span></label>
-                    <select name="category_id" class="form-select" required>
-                        <option value="">— Select category —</option>
-                        @foreach($categories as $c)
-                            @php
-                                $disabled = in_array($c->id, $usedCategoryIds);
-                                $selected = $isEdit ? $frame->category_id === $c->id : false;
-                            @endphp
-                            <option value="{{ $c->id }}" @disabled($disabled && !$selected) @selected($selected)>
-                                {{ $c->category_name }}{{ $disabled && !$selected ? ' (already has a record)' : '' }}
-                            </option>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Gender <span class="text-danger">*</span></label>
+                    <select name="gender" id="gender" class="form-select" required>
+                        <option value="">— Select gender —</option>
+                        @foreach($genders as $gid => $gname)
+                            <option value="{{ $gid }}" @selected($isEdit && $frame->gender == $gid)>{{ $gname }}</option>
                         @endforeach
                     </select>
-                    <div class="form-text">Only categories without an existing frame record can be chosen.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Month <span class="text-danger">*</span></label>
+                    <select name="month" id="month" class="form-select" required>
+                        <option value="">— Select month —</option>
+                        @foreach($months as $m)
+                            <option value="{{ $m }}" @selected($isEdit && $frame->month == $m)>Month {{ $m }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
+            <div class="form-text">One record per gender + month. Existing combinations can't be reused.</div>
         </div>
     </div>
 
@@ -83,14 +86,14 @@
                             <div class="col-md-4">
                                 <label class="form-label small text-muted">Frame image (.webp)</label>
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="{{ $frameImgUrl($frame->category->category_name, $f, 'frame') }}" class="preview-frame thumb-preview" style="width:46px;height:46px;flex:0 0 auto" alt="" loading="lazy" decoding="async">
+                                    <img src="{{ $mUrl($frame, $f, 'frame') }}" class="preview-frame thumb-preview" style="width:46px;height:46px;flex:0 0 auto" alt="" loading="lazy" decoding="async">
                                     <input type="file" name="keep_images[e{{ $k }}]" class="form-control form-control-sm input-frame" accept="image/webp">
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label small text-muted">Thumbnail (.webp)</label>
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="{{ !empty($f['thumbnail_path']) ? $frameImgUrl($frame->category->category_name, $f, 'thumb') : '' }}" class="preview-thumb thumb-preview {{ !empty($f['thumbnail_path']) ? '' : 'd-none' }}" style="width:46px;height:46px;flex:0 0 auto" alt="" loading="lazy">
+                                    <img src="{{ !empty($f['thumbnail_path']) ? $mUrl($frame, $f, 'thumb') : '' }}" class="preview-thumb thumb-preview {{ !empty($f['thumbnail_path']) ? '' : 'd-none' }}" style="width:46px;height:46px;flex:0 0 auto" alt="" loading="lazy">
                                     <input type="file" name="keep_thumbnails[e{{ $k }}]" class="form-control form-control-sm input-thumb" accept="image/webp">
                                 </div>
                             </div>
@@ -108,7 +111,7 @@
 
     <div>
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i> {{ $isEdit ? 'Update Record' : 'Save Record' }}</button>
-        <a href="{{ route('frames.index') }}" class="btn btn-light border">Cancel</a>
+        <a href="{{ route('milestone-frames.index') }}" class="btn btn-light border">Cancel</a>
     </div>
 </form>
 @endsection
@@ -118,6 +121,7 @@
 <script>
 (function () {
     const isEdit = @json($isEdit);
+    const usedCombos = @json($usedCombos);
     const rows = document.getElementById('frameRows');
     let idx = 0;
 
@@ -160,8 +164,7 @@
     }
 
     function addRow() {
-        const key = 'n' + (idx++);
-        rows.insertAdjacentHTML('beforeend', newRowHtml(key));
+        rows.insertAdjacentHTML('beforeend', newRowHtml('n' + (idx++)));
         renumber();
     }
 
@@ -175,46 +178,59 @@
         if (btn) { btn.closest('.frame-row').remove(); renumber(); }
     });
 
-    // Live preview when a frame image / thumbnail file is chosen.
+    // Live preview on file select.
     rows.addEventListener('change', function (e) {
         const inp = e.target;
         const isFrame = inp.classList && inp.classList.contains('input-frame');
         const isThumb = inp.classList && inp.classList.contains('input-thumb');
         if (!isFrame && !isThumb) return;
         const file = inp.files && inp.files[0];
-        const row = inp.closest('.frame-row');
-        const target = row.querySelector(isFrame ? '.preview-frame' : '.preview-thumb');
-        if (file && target) {
-            target.src = URL.createObjectURL(file);
-            target.classList.remove('d-none');
-        }
+        const target = inp.closest('.frame-row').querySelector(isFrame ? '.preview-frame' : '.preview-thumb');
+        if (file && target) { target.src = URL.createObjectURL(file); target.classList.remove('d-none'); }
     });
 
     if (!isEdit) addRow(); else renumber();
 
+    // Disable months already used for the selected gender (one record per gender+month).
+    function refreshMonthOptions() {
+        const g = $('#gender').val();
+        $('#month option').each(function () {
+            const m = this.value;
+            if (!m) return; // keep the placeholder
+            const used = g && usedCombos.includes(g + '-' + m);
+            this.disabled = !!used;
+            this.textContent = 'Month ' + m + (used ? ' (already added)' : '');
+        });
+        // If the currently selected month is now disabled, clear it.
+        const sel = document.querySelector('#month option:checked');
+        if (sel && sel.disabled) $('#month').val('');
+    }
+    $('#gender').on('change', refreshMonthOptions);
+    refreshMonthOptions();
+
     document.getElementById('frameForm').addEventListener('submit', function (e) {
         e.preventDefault();
         const keys = Array.from(rows.querySelectorAll('.frame-row')).map(r => r.dataset.key);
-        if (keys.length === 0) {
-            Swal.fire({ icon: 'warning', title: 'Add at least one frame' });
+        if (keys.length === 0) { Swal.fire({ icon: 'warning', title: 'Add at least one frame' }); return; }
+
+        // Client-side duplicate (gender+month) hint.
+        const combo = $('#gender').val() + '-' + $('#month').val();
+        if ($('#gender').val() && $('#month').val() && usedCombos.includes(combo)) {
+            Swal.fire({ icon: 'warning', title: 'This gender + month already has a record' });
             return;
         }
-        document.getElementById('frameOrder').value = JSON.stringify(keys);
 
+        document.getElementById('frameOrder').value = JSON.stringify(keys);
         const form = this;
         const btn = form.querySelector('button[type="submit"]');
         window.setBtnLoading(btn, true);
         $.ajax({
-            url: form.action,
-            method: 'POST',
-            data: new FormData(form),
-            processData: false,
-            contentType: false,
+            url: form.action, method: 'POST', data: new FormData(form),
+            processData: false, contentType: false,
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             success: function (res) {
-                // Errors never reach here; on success go to the list with a toast.
                 try { sessionStorage.setItem('ngd_flash', res.message || 'Saved'); } catch (err) {}
-                window.location = @json(route('frames.index'));
+                window.location = @json(route('milestone-frames.index'));
             },
             error: function (xhr) { window.showAjaxError(xhr); window.setBtnLoading(btn, false); }
         });

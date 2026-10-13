@@ -3,12 +3,13 @@
 @section('breadcrumb', 'Frames Module / ')
 
 @php
-    $frameImgUrl = function ($categoryName, $f) use ($appCode) {
+    $effectiveApp = ($appCode && $appCode !== '001') ? $appCode : 'ngd001';
+    $frameImgUrl = function ($categoryName, $f) use ($effectiveApp) {
         $cat = rawurlencode($categoryName);
         if (! empty($f['thumbnail_path'])) {
-            return url('upload/' . $appCode . '/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
+            return url('upload/' . $effectiveApp . '/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
         }
-        return url('upload/' . $appCode . '/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
+        return url('upload/' . $effectiveApp . '/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
     };
 @endphp
 

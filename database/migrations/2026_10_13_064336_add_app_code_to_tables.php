@@ -1,68 +1,69 @@
 <?php
 
+use App\Models\App;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     public function up(): void
     {
-        // users: null app_code = super-admin (all apps); otherwise scoped to one app.
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('app_code')->nullable()->after('email')->index();
-        });
+        // 1. users: null app_code = super-admin; otherwise scoped to one app.
+        if (! Schema::hasColumn('users', 'app_code')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->string('app_code')->nullable()->after('email')->index();
+            });
+        }
 
-        Schema::table('frame_categories', function (Blueprint $table) {
-            $table->string('app_code')->nullable()->after('id')->index();
-        });
-        Schema::table('frames', function (Blueprint $table) {
-            $table->string('app_code')->nullable()->after('id')->index();
-        });
-        Schema::table('milestone_frames', function (Blueprint $table) {
-            $table->string('app_code')->nullable()->after('id')->index();
-        });
+        // 2. Register default ngd001 app.
+        DB::table('apps')->updateOrInsert(
+            ['code' => 'ngd001'],
+            ['name' => 'NGD 001', 'status' => 1, 'updated_at' => now(), 'created_at' => now()]
+        );
 
-        // Backfill everything that already exists to the default app.
-        DB::table('apps')->updateOrInsert(['code' => 'ngd001'], ['name' => 'NGD 001', 'status' => 1]);
-        DB::table('users')->update(['app_code' => null]); // keep existing users as super-admins
-        DB::table('frame_categories')->update(['app_code' => 'ngd001']);
-        DB::table('frames')->update(['app_code' => 'ngd001']);
-        DB::table('milestone_frames')->update(['app_code' => 'ngd001']);
+        // 3. Migrate existing tables into ngd001 module tables (without app_code column).
+        // If legacy tables exist, rename them to the ngd001 module names.
+        if (Schema::hasTable('frame_categories') && ! Schema::hasTable('ngd001_frames_category')) {
+            if (Schema::hasColumn('frame_categories', 'app_code')) {
+                Schema::table('frame_categories', function (Blueprint $table) {
+                    $table->dropColumn('app_code');
+                });
+            }
+            Schema::rename('frame_categories', 'ngd001_frames_category');
+        }
 
-        // Uniqueness becomes per-app.
-        Schema::table('frame_categories', function (Blueprint $table) {
-            $table->dropUnique('frame_categories_category_name_unique');
-            $table->unique(['app_code', 'category_name']);
-        });
-        Schema::table('milestone_frames', function (Blueprint $table) {
-            $table->dropUnique('milestone_frames_gender_month_unique');
-            $table->unique(['app_code', 'gender', 'month']);
-        });
+        if (Schema::hasTable('frames') && ! Schema::hasTable('ngd001_frames')) {
+            if (Schema::hasColumn('frames', 'app_code')) {
+                Schema::table('frames', function (Blueprint $table) {
+                    $table->dropColumn('app_code');
+                });
+            }
+            Schema::rename('frames', 'ngd001_frames');
+        }
+
+        if (Schema::hasTable('milestone_frames') && ! Schema::hasTable('ngd001_milestone_frame')) {
+            if (Schema::hasColumn('milestone_frames', 'app_code')) {
+                Schema::table('milestone_frames', function (Blueprint $table) {
+                    $table->dropColumn('app_code');
+                });
+            }
+            Schema::rename('milestone_frames', 'ngd001_milestone_frame');
+        }
+
+        // 4. Ensure ngd001 tables are created if this is run fresh.
+        App::createAppTables('ngd001');
     }
 
     public function down(): void
     {
-        Schema::table('frame_categories', function (Blueprint $table) {
-            $table->dropUnique(['app_code', 'category_name']);
-            $table->unique('category_name');
-            $table->dropIndex(['app_code']);
-            $table->dropColumn('app_code');
-        });
-        Schema::table('milestone_frames', function (Blueprint $table) {
-            $table->dropUnique(['app_code', 'gender', 'month']);
-            $table->unique(['gender', 'month']);
-            $table->dropIndex(['app_code']);
-            $table->dropColumn('app_code');
-        });
-        Schema::table('frames', function (Blueprint $table) {
-            $table->dropIndex(['app_code']);
-            $table->dropColumn('app_code');
-        });
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropIndex(['app_code']);
-            $table->dropColumn('app_code');
-        });
+        App::dropAppTables('ngd001');
+
+        if (Schema::hasColumn('users', 'app_code')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropIndex(['app_code']);
+                $table->dropColumn('app_code');
+            });
+        }
     }
 };

@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\FrameApiController;
-use App\Http\Controllers\Api\MilestoneFrameApiController;
+use App\Http\Controllers\Api\Ngd001FrameApiController;
+use App\Http\Controllers\Api\Ngd001MilestoneFrameApiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('{app}')->middleware(['app.route', 'auth.apitoken'])->group(function () {
-    Route::get('/v1/getFrameCategories', [FrameApiController::class, 'getFrameCategories']);
-    Route::post('/v1/getFramesByCategoryId', [FrameApiController::class, 'getFramesByCategoryId']);
-    Route::post('/v1/getMonthlyFrameByCategoryId', [MilestoneFrameApiController::class, 'getMonthlyFrameByCategoryId']);
+    Route::get('/v1/getFrameCategories', [Ngd001FrameApiController::class, 'getFrameCategories']);
+    Route::post('/v1/getFramesByCategoryId', [Ngd001FrameApiController::class, 'getFramesByCategoryId']);
+    Route::post('/v1/getMonthlyFrameByCategoryId', [Ngd001MilestoneFrameApiController::class, 'getMonthlyFrameByCategoryId']);
 });
