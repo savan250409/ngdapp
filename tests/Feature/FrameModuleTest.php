@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\App;
 use App\Models\Frame;
 use App\Models\FrameCategory;
 use App\Models\User;
+use App\Support\AppContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
@@ -15,21 +17,23 @@ class FrameModuleTest extends TestCase
     use RefreshDatabase;
 
     private string $token = 'test-token-123';
+    private string $appCode = 'ngd001';
     private array $madeDirs = [];
 
     protected function setUp(): void
     {
         parent::setUp();
         config(['services.api_token' => $this->token]);
-        // Admin panel routes are auth-protected; act as the admin user.
-        $this->actingAs(User::factory()->create(['email' => 'admin@gmail.com']));
+        App::firstOrCreate(['code' => $this->appCode], ['name' => 'NGD 001', 'status' => 1]);
+        AppContext::set($this->appCode); // for direct model creates in tests
+        // Act as the app-scoped admin.
+        $this->actingAs(User::factory()->create(['email' => 'ngd001@admin', 'app_code' => $this->appCode]));
     }
 
     protected function tearDown(): void
     {
-        // Remove any upload folders this test created.
         foreach (array_unique($this->madeDirs) as $name) {
-            $dir = public_path('upload/frame/' . $name);
+            $dir = public_path('upload/' . $this->appCode . '/frame/' . $name);
             if (File::exists($dir)) {
                 File::deleteDirectory($dir);
             }
@@ -70,7 +74,7 @@ class FrameModuleTest extends TestCase
         $category = FrameCategory::where('category_name', $name)->first();
         $this->assertNotNull($category);
         $this->assertNotNull($category->category_image);
-        $this->assertTrue(File::exists(public_path("upload/frame/{$name}/category_thumbnail_frame/{$category->category_image}")));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$name}/category_thumbnail_frame/{$category->category_image}")));
 
         // 2. Create a frame record with 2 frames (one with a thumbnail), drag order n0,n1.
         $res = $this->post('/frames', [
@@ -92,8 +96,8 @@ class FrameModuleTest extends TestCase
         $this->assertArrayNotHasKey('count', $frame->frames[0]);
         $this->assertArrayNotHasKey('is_pro', $frame->frames[0]);
         // Files landed on disk.
-        $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame/" . $frame->frames[0]['image_path'])));
-        $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame_thumbnail/" . $frame->frames[0]['thumbnail_path'])));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$name}/frame/" . $frame->frames[0]['image_path'])));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$name}/frame_thumbnail/" . $frame->frames[0]['thumbnail_path'])));
 
         // 3. One-record-per-category rule is enforced.
         $dup = $this->post('/frames', [
@@ -104,19 +108,19 @@ class FrameModuleTest extends TestCase
         $dup->assertSessionHasErrors('category_id');
 
         // 4. API: list categories (requires bearer token).
-        $this->getJson('/api/v1/getFrameCategories')->assertStatus(401);
+        $this->getJson('/api/ngd001/v1/getFrameCategories')->assertStatus(401);
 
-        $list = $this->getJson('/api/v1/getFrameCategories', [
+        $list = $this->getJson('/api/ngd001/v1/getFrameCategories', [
             'Authorization' => 'Bearer ' . $this->token,
         ]);
         $list->assertStatus(200)
             ->assertJsonPath('status', true)
             ->assertJsonPath('data.0.category_name', $name)
             ->assertJsonCount(2, 'data.0.frames');
-        $this->assertStringContainsString('/upload/frame/', $list->json('data.0.frames.0.frame_full_url'));
+        $this->assertStringContainsString('/upload/ngd001/frame/', $list->json('data.0.frames.0.frame_full_url'));
 
         // 5. API: frames by category id.
-        $byId = $this->postJson('/api/v1/getFramesByCategoryId',
+        $byId = $this->postJson('/api/ngd001/v1/getFramesByCategoryId',
             ['category_id' => $category->id],
             ['Authorization' => 'Bearer ' . $this->token]
         );
@@ -126,18 +130,18 @@ class FrameModuleTest extends TestCase
             ->assertJsonCount(2, 'data.thumbnail');
 
         // 6. API validation: missing id -> 422.
-        $this->postJson('/api/v1/getFramesByCategoryId', [],
+        $this->postJson('/api/ngd001/v1/getFramesByCategoryId', [],
             ['Authorization' => 'Bearer ' . $this->token]
         )->assertStatus(422);
 
         // 7. Inactive category -> 403.
         $category->update(['status' => 0]);
-        $this->postJson('/api/v1/getFramesByCategoryId',
+        $this->postJson('/api/ngd001/v1/getFramesByCategoryId',
             ['category_id' => $category->id],
             ['Authorization' => 'Bearer ' . $this->token]
         )->assertStatus(403);
         // Inactive is also excluded from the list.
-        $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token])
+        $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token])
             ->assertStatus(404);
         $category->update(['status' => 1]);
 
@@ -154,12 +158,12 @@ class FrameModuleTest extends TestCase
             'category_name' => $newName,
             'status'        => 1,
         ])->assertRedirect();
-        $this->assertTrue(File::exists(public_path("upload/frame/{$newName}/frame")));
-        $this->assertFalse(File::exists(public_path("upload/frame/{$name}")));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$newName}/frame")));
+        $this->assertFalse(File::exists(public_path("upload/ngd001/frame/{$name}")));
 
         // 10. Delete the category removes folder + cascades the frame record.
         $this->delete("/frame-categories/{$category->id}")->assertRedirect();
-        $this->assertFalse(File::exists(public_path("upload/frame/{$newName}")));
+        $this->assertFalse(File::exists(public_path("upload/ngd001/frame/{$newName}")));
         $this->assertDatabaseMissing('frames', ['category_id' => $category->id]);
         $this->assertDatabaseMissing('frame_categories', ['id' => $category->id]);
     }
@@ -210,7 +214,7 @@ class FrameModuleTest extends TestCase
         $this->assertSame(3, $b->fresh()->sort_order);
 
         // API returns them in the saved sequence.
-        $res = $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
         $res->assertStatus(200)
             ->assertJsonPath('data.0.category_name', $cc->category_name)
             ->assertJsonPath('data.1.category_name', $a->category_name)
@@ -262,9 +266,9 @@ class FrameModuleTest extends TestCase
         $this->assertArrayNotHasKey('is_pro', $frames[0]);
 
         // Dropped frame's file was deleted; kept + new files exist.
-        $this->assertFalse(File::exists(public_path("upload/frame/{$name}/frame/{$dropPath}")));
-        $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame/{$keepPath}")));
-        $this->assertTrue(File::exists(public_path("upload/frame/{$name}/frame/" . $frames[0]['image_path'])));
+        $this->assertFalse(File::exists(public_path("upload/ngd001/frame/{$name}/frame/{$dropPath}")));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$name}/frame/{$keepPath}")));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/frame/{$name}/frame/" . $frames[0]['image_path'])));
     }
 
     public function test_frames_reorder_within_category_reflects_in_api(): void
@@ -287,7 +291,7 @@ class FrameModuleTest extends TestCase
         $this->assertSame('b.webp', $frames[2]['image_path']);
 
         // API returns frames in the new order.
-        $res = $this->postJson('/api/v1/getFramesByCategoryId',
+        $res = $this->postJson('/api/ngd001/v1/getFramesByCategoryId',
             ['category_id' => $c->id],
             ['Authorization' => 'Bearer ' . $this->token]
         );
@@ -310,7 +314,7 @@ class FrameModuleTest extends TestCase
         ]]);
 
         // getFrameCategories
-        $list = $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $list = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
         $list->assertStatus(200);
         $catThumb = $list->json('data.0.category_thumbnail_image_full_url');
         $frameUrl = $list->json('data.0.frames.0.frame_full_url');
@@ -325,7 +329,7 @@ class FrameModuleTest extends TestCase
         $this->assertStringContainsString('thumb%20one.webp', $thumbUrl);
 
         // getFramesByCategoryId
-        $byId = $this->postJson('/api/v1/getFramesByCategoryId',
+        $byId = $this->postJson('/api/ngd001/v1/getFramesByCategoryId',
             ['category_id' => $cat->id],
             ['Authorization' => 'Bearer ' . $this->token]
         );
@@ -350,7 +354,7 @@ class FrameModuleTest extends TestCase
         $empty = FrameCategory::create(['category_name' => 'Empty ' . uniqid(), 'status' => 1]);
         Frame::create(['category_id' => $empty->id, 'frames' => []]);
 
-        $res = $this->getJson('/api/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
         $res->assertStatus(200);
 
         $names = collect($res->json('data'))->pluck('category_name');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MilestoneFrame;
+use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -31,12 +32,12 @@ class MilestoneFrameController extends Controller
 
     private function frameDir($gender, $month): string
     {
-        return public_path('upload/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . (int) $month . '/frame');
+        return public_path('upload/' . AppContext::code() . '/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . (int) $month . '/frame');
     }
 
     private function thumbDir($gender, $month): string
     {
-        return public_path('upload/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . (int) $month . '/frame_thumbnail');
+        return public_path('upload/' . AppContext::code() . '/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . (int) $month . '/frame_thumbnail');
     }
 
     private function moveFile(string $from, string $to): void
@@ -339,7 +340,7 @@ class MilestoneFrameController extends Controller
     public function recordFrames($id)
     {
         $record = MilestoneFrame::findOrFail($id);
-        $base   = 'upload/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
+        $base   = 'upload/' . AppContext::code() . '/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
 
         $frames = collect($record->frames ?? [])
             ->sortBy('frame_index')

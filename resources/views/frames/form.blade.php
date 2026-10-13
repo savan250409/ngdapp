@@ -4,12 +4,12 @@
 @section('breadcrumb', 'Frames Module / Frames / ')
 
 @php
-    $frameImgUrl = function ($categoryName, $f, $which = 'thumb') {
+    $frameImgUrl = function ($categoryName, $f, $which = 'thumb') use ($appCode) {
         $cat = rawurlencode($categoryName);
         if ($which === 'thumb' && ! empty($f['thumbnail_path'])) {
-            return url('upload/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
+            return url('upload/' . $appCode . '/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
         }
-        return url('upload/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
+        return url('upload/' . $appCode . '/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
     };
     $existing = $isEdit ? collect($frame->frames ?? [])->sortBy('frame_index')->values() : collect();
 @endphp
@@ -203,7 +203,7 @@
 
         const form = this;
         const btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
+        window.setBtnLoading(btn, true);
         $.ajax({
             url: form.action,
             method: 'POST',
@@ -216,7 +216,7 @@
                 try { sessionStorage.setItem('ngd_flash', res.message || 'Saved'); } catch (err) {}
                 window.location = @json(route('frames.index'));
             },
-            error: function (xhr) { window.showAjaxError(xhr); btn.disabled = false; }
+            error: function (xhr) { window.showAjaxError(xhr); window.setBtnLoading(btn, false); }
         });
     });
 })();

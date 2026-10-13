@@ -6,12 +6,13 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Public Frame API (Bearer-token protected)
+| Public API (per-app, Bearer-token protected)
 |--------------------------------------------------------------------------
+| Base: /api/{app}/v1/...   e.g. /api/ngd001/v1/getFrameCategories
 | Send: Authorization: Bearer <API_TOKEN>
 */
 
-Route::middleware('auth.apitoken')->group(function () {
+Route::prefix('{app}')->middleware(['app.route', 'auth.apitoken'])->group(function () {
     Route::get('/v1/getFrameCategories', [FrameApiController::class, 'getFrameCategories']);
     Route::post('/v1/getFramesByCategoryId', [FrameApiController::class, 'getFramesByCategoryId']);
     Route::post('/v1/getMonthlyFrameByCategoryId', [MilestoneFrameApiController::class, 'getMonthlyFrameByCategoryId']);

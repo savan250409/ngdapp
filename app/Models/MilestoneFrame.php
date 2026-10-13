@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToApp;
 use Illuminate\Database\Eloquent\Model;
 
 class MilestoneFrame extends Model
 {
+    use BelongsToApp;
+
     protected $table = 'milestone_frames';
 
-    protected $fillable = ['gender', 'month', 'frames'];
+    protected $fillable = ['app_code', 'gender', 'month', 'frames'];
 
     protected $casts = [
         'frames' => 'array', // JSON <-> PHP array

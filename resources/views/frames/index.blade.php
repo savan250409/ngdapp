@@ -3,12 +3,12 @@
 @section('breadcrumb', 'Frames Module / ')
 
 @php
-    $frameImgUrl = function ($categoryName, $f) {
+    $frameImgUrl = function ($categoryName, $f) use ($appCode) {
         $cat = rawurlencode($categoryName);
         if (! empty($f['thumbnail_path'])) {
-            return url('upload/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
+            return url('upload/' . $appCode . '/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
         }
-        return url('upload/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
+        return url('upload/' . $appCode . '/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
     };
 @endphp
 

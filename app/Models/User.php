@@ -22,7 +22,14 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'app_code',
     ];
+
+    /** Super-admin = no app_code (sees all apps). */
+    public function isSuperAdmin(): bool
+    {
+        return empty($this->app_code);
+    }
 
     /**
      * The attributes that should be hidden for serialization.

@@ -27,8 +27,13 @@
 <div class="api-doc">
     <div class="page-head">
         <div>
-            <h1>API Documentation</h1>
-            <p>All endpoints for the Frames module.</p>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h1 class="mb-0">API Documentation</h1>
+                @if(!empty($appCode))
+                    <span class="badge-pill" style="background:var(--brand-50);color:var(--brand-600);font-weight:700;font-size:.9rem;"><i class="bi bi-grid-3x3-gap-fill me-1"></i>{{ $appCode }}</span>
+                @endif
+            </div>
+            <p class="mt-1">All endpoints for <b>{{ $appCode ?? 'your app' }}</b>.</p>
         </div>
     </div>
 

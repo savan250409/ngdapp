@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\MilestoneFrame;
+use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -36,8 +37,9 @@ class MilestoneFrameApiController extends Controller
 
         $baseUrl = url('/');
         $data = $records->map(function ($record) use ($baseUrl, $slug) {
-            $framePath = $baseUrl . '/upload/milestone_frame/' . $slug . '/' . $record->month . '/frame/';
-            $thumbPath = $baseUrl . '/upload/milestone_frame/' . $slug . '/' . $record->month . '/frame_thumbnail/';
+            $appBase   = $baseUrl . '/upload/' . AppContext::code() . '/milestone_frame/' . $slug . '/' . $record->month;
+            $framePath = $appBase . '/frame/';
+            $thumbPath = $appBase . '/frame_thumbnail/';
 
             $frames = [];
             $thumbnails = [];

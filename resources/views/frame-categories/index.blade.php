@@ -3,9 +3,9 @@
 @section('breadcrumb', 'Frames Module / ')
 
 @php
-    $thumbUrl = function ($cat) {
+    $thumbUrl = function ($cat) use ($appCode) {
         if (! $cat->category_image) return null;
-        return url('upload/frame/' . rawurlencode($cat->category_name) . '/category_thumbnail_frame/' . rawurlencode($cat->category_image));
+        return url('upload/' . $appCode . '/frame/' . rawurlencode($cat->category_name) . '/category_thumbnail_frame/' . rawurlencode($cat->category_image));
     };
 @endphp
 
@@ -320,8 +320,8 @@
     $('#categoryForm').on('submit', function (e) {
         e.preventDefault();
         const form = this;
-        const btn = $(form).find('button[type="submit"]');
-        btn.prop('disabled', true);
+        const btn = $(form).find('button[type="submit"]')[0];
+        window.setBtnLoading(btn, true);
         $.ajax({
             url: form.action,
             method: 'POST',
@@ -335,7 +335,7 @@
                 Toast.fire({ icon: 'success', title: res.message || 'Saved' });
             },
             error: function (xhr) { window.showAjaxError(xhr); },
-            complete: function () { btn.prop('disabled', false); }
+            complete: function () { window.setBtnLoading(btn, false); }
         });
     });
 

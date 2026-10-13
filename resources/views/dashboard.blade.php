@@ -5,8 +5,13 @@
 @section('content')
 <div class="page-head">
     <div>
-        <h1>Welcome back 👋</h1>
-        <p>Here's an overview of your frames module.</p>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h1 class="mb-0">Welcome back 👋</h1>
+            @if(!empty($appCode))
+                <span class="badge-pill" style="background:var(--brand-50);color:var(--brand-600);font-weight:700;font-size:.9rem;"><i class="bi bi-grid-3x3-gap-fill me-1"></i>{{ $appCode }}</span>
+            @endif
+        </div>
+        <p class="mt-1">Here's an overview of <b>{{ $appCode ?? 'your app' }}</b>.</p>
     </div>
     <a href="{{ route('frames.create') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i> New Frame Record</a>
 </div>

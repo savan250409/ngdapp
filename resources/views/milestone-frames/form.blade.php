@@ -4,8 +4,8 @@
 @section('breadcrumb', 'Frames Module / Milestone Frames / ')
 
 @php
-    $mUrl = function ($record, $f, $which = 'thumb') {
-        $base = 'upload/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
+    $mUrl = function ($record, $f, $which = 'thumb') use ($appCode) {
+        $base = 'upload/' . $appCode . '/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
         if ($which === 'thumb' && ! empty($f['thumbnail_path'])) {
             return url($base . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
         }
@@ -190,6 +190,23 @@
 
     if (!isEdit) addRow(); else renumber();
 
+    // Disable months already used for the selected gender (one record per gender+month).
+    function refreshMonthOptions() {
+        const g = $('#gender').val();
+        $('#month option').each(function () {
+            const m = this.value;
+            if (!m) return; // keep the placeholder
+            const used = g && usedCombos.includes(g + '-' + m);
+            this.disabled = !!used;
+            this.textContent = 'Month ' + m + (used ? ' (already added)' : '');
+        });
+        // If the currently selected month is now disabled, clear it.
+        const sel = document.querySelector('#month option:checked');
+        if (sel && sel.disabled) $('#month').val('');
+    }
+    $('#gender').on('change', refreshMonthOptions);
+    refreshMonthOptions();
+
     document.getElementById('frameForm').addEventListener('submit', function (e) {
         e.preventDefault();
         const keys = Array.from(rows.querySelectorAll('.frame-row')).map(r => r.dataset.key);
@@ -205,7 +222,7 @@
         document.getElementById('frameOrder').value = JSON.stringify(keys);
         const form = this;
         const btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
+        window.setBtnLoading(btn, true);
         $.ajax({
             url: form.action, method: 'POST', data: new FormData(form),
             processData: false, contentType: false,
@@ -214,7 +231,7 @@
                 try { sessionStorage.setItem('ngd_flash', res.message || 'Saved'); } catch (err) {}
                 window.location = @json(route('milestone-frames.index'));
             },
-            error: function (xhr) { window.showAjaxError(xhr); btn.disabled = false; }
+            error: function (xhr) { window.showAjaxError(xhr); window.setBtnLoading(btn, false); }
         });
     });
 })();

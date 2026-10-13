@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'auth.apitoken' => \App\Http\Middleware\ApiTokenMiddleware::class,
+            'app.context'   => \App\Http\Middleware\SetAppContext::class,
+            'app.route'     => \App\Http\Middleware\SetAppFromRoute::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

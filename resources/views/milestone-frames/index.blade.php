@@ -3,8 +3,8 @@
 @section('breadcrumb', 'Frames Module / ')
 
 @php
-    $mThumb = function ($record, $f) {
-        $base = 'upload/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
+    $mThumb = function ($record, $f) use ($appCode) {
+        $base = 'upload/' . $appCode . '/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
         if (! empty($f['thumbnail_path'])) {
             return url($base . '/frame_thumbnail/' . rawurlencode($f['thumbnail_path']));
         }

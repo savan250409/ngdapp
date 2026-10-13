@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AppContext;
+
 class ApiDocController extends Controller
 {
     public function index()
     {
-        $base = rtrim(url('/'), '/');
+        $app  = AppContext::code() ?: 'ngd001';
+        $base = rtrim(url('/'), '/') . '/api/' . $app;
 
         // API documentation grouped into sections (matches the card layout).
         $groups = [
@@ -18,7 +21,7 @@ class ApiDocController extends Controller
                         'no'          => 1,
                         'title'       => 'Get Frame Categories',
                         'method'      => 'GET',
-                        'url'         => $base . '/api/v1/getFrameCategories',
+                        'url'         => $base . '/v1/getFrameCategories',
                         'params'      => [],
                         'description' => 'Returns every active category that has frames, newest first, each with its first 5 frames (ordered by frame_index).',
                     ],
@@ -26,7 +29,7 @@ class ApiDocController extends Controller
                         'no'          => 2,
                         'title'       => 'Get Frames By Category Id',
                         'method'      => 'POST',
-                        'url'         => $base . '/api/v1/getFramesByCategoryId',
+                        'url'         => $base . '/v1/getFramesByCategoryId',
                         'params'      => [
                             ['name' => 'category_id', 'required' => true],
                         ],
@@ -36,7 +39,7 @@ class ApiDocController extends Controller
                         'no'          => 3,
                         'title'       => 'Get Monthly Frames (Milestone)',
                         'method'      => 'POST',
-                        'url'         => $base . '/api/v1/getMonthlyFrameByCategoryId',
+                        'url'         => $base . '/v1/getMonthlyFrameByCategoryId',
                         'params'      => [
                             ['name' => 'category_id', 'required' => true],
                         ],

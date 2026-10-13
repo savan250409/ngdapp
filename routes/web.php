@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApiDocController;
+use App\Http\Controllers\AppController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FrameCategoryController;
@@ -25,9 +26,17 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 | Admin panel (auth-protected)
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'app.context'])->group(function () {
     Route::get('/', fn () => redirect()->route('dashboard'));
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // App management + switcher (super-admin). The gate is enforced in the controller.
+    Route::post('/switch-app', [AppController::class, 'switch'])->name('apps.switch');
+    Route::prefix('apps')->name('apps.')->group(function () {
+        Route::get('/', [AppController::class, 'index'])->name('index');
+        Route::post('/', [AppController::class, 'store'])->name('store');
+        Route::delete('/{id}', [AppController::class, 'destroy'])->name('destroy');
+    });
 
     // Frame Categories
     Route::prefix('frame-categories')->name('frame-categories.')->group(function () {

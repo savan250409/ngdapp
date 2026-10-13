@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Frame;
 use App\Models\FrameCategory;
+use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -39,12 +40,13 @@ class FrameApiController extends Controller
 
         $categories->transform(function ($category) use ($frameRecords) {
             $encoded = $category->category_name;
+            $up      = url('/') . '/upload/' . AppContext::code() . '/'; // per-app base
             $path    = $category->category_image
                 ? "frame/{$encoded}/category_thumbnail_frame/{$category->category_image}"
                 : null;
             // Encode every space in the final URL as %20.
-            $category->category_thumbnail_image_full_url = $path ? str_replace(' ', '%20', url('/') . '/upload/' . $path) : null;
-            unset($category->category_image, $category->sort_order);
+            $category->category_thumbnail_image_full_url = $path ? str_replace(' ', '%20', $up . $path) : null;
+            unset($category->category_image, $category->sort_order, $category->app_code);
 
             $allFrames = [];
             foreach ($frameRecords->get($category->id, collect()) as $record) {
@@ -52,8 +54,8 @@ class FrameApiController extends Controller
                     $thumb = $f['thumbnail_path'] ?? null;
                     $allFrames[] = [
                         'sort'               => $f['frame_index'] ?? 0,
-                        'frame_full_url'     => str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame/" . basename($f['image_path'])),
-                        'thumbnail_full_url' => $thumb ? str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame_thumbnail/" . basename($thumb)) : null,
+                        'frame_full_url'     => str_replace(' ', '%20', $up . "frame/{$encoded}/frame/" . basename($f['image_path'])),
+                        'thumbnail_full_url' => $thumb ? str_replace(' ', '%20', $up . "frame/{$encoded}/frame_thumbnail/" . basename($thumb)) : null,
                     ];
                 }
             }
@@ -100,7 +102,11 @@ class FrameApiController extends Controller
             ], 422);
         }
 
+        // find() is app-scoped; a category_id from another app resolves to null here.
         $category = FrameCategory::find($request->category_id);
+        if (! $category) {
+            return response()->json(['status' => false, 'message' => 'Category not found', 'data' => []], 404);
+        }
         if ($category->status == 0) {
             return response()->json([
                 'status'  => false,
@@ -110,6 +116,7 @@ class FrameApiController extends Controller
         }
 
         $encoded   = $category->category_name;
+        $up        = url('/') . '/upload/' . AppContext::code() . '/'; // per-app base
         $allFrames = [];
         foreach (Frame::where('category_id', $request->category_id)->get() as $record) {
             foreach ($record->frames ?? [] as $f) {
@@ -117,8 +124,8 @@ class FrameApiController extends Controller
                 $allFrames[] = [
                     'sort'               => $f['frame_index'] ?? 0,
                     // Encode every space in the final URL as %20.
-                    'frame_full_url'     => str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame/" . basename($f['image_path'])),
-                    'thumbnail_full_url' => $thumb ? str_replace(' ', '%20', url('/') . '/upload/' . "frame/{$encoded}/frame_thumbnail/" . basename($thumb)) : null,
+                    'frame_full_url'     => str_replace(' ', '%20', $up . "frame/{$encoded}/frame/" . basename($f['image_path'])),
+                    'thumbnail_full_url' => $thumb ? str_replace(' ', '%20', $up . "frame/{$encoded}/frame_thumbnail/" . basename($thumb)) : null,
                 ];
             }
         }

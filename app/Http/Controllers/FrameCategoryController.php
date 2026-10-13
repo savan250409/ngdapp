@@ -3,12 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\FrameCategory;
+use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Validation\Rule;
 
 class FrameCategoryController extends Controller
 {
+    /** Per-app frame storage base, e.g. "upload/ngd001/frame". */
+    private function base(): string
+    {
+        return 'upload/' . AppContext::code() . '/frame';
+    }
+
     public function index()
     {
         $query = FrameCategory::latest();
@@ -67,14 +75,14 @@ class FrameCategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'category_name'  => 'required|string|max:255|unique:frame_categories,category_name',
+            'category_name'  => ['required', 'string', 'max:255', Rule::unique('frame_categories', 'category_name')->where('app_code', AppContext::code())],
             'category_image' => 'nullable|image|mimes:webp|max:20048',
             'status'         => 'nullable|in:0,1',
         ]);
 
         $fileName = null;
         if ($request->hasFile('category_image')) {
-            $dest = public_path('upload/frame/' . $request->category_name . '/category_thumbnail_frame');
+            $dest = public_path($this->base() . '/' . $request->category_name . '/category_thumbnail_frame');
             if (! File::exists($dest)) {
                 File::makeDirectory($dest, 0777, true, true);
             }
@@ -102,7 +110,7 @@ class FrameCategoryController extends Controller
         $category = FrameCategory::findOrFail($id);
 
         $request->validate([
-            'category_name'  => 'required|string|max:255|unique:frame_categories,category_name,' . $id,
+            'category_name'  => ['required', 'string', 'max:255', Rule::unique('frame_categories', 'category_name')->where('app_code', AppContext::code())->ignore($id)],
             'category_image' => 'nullable|image|mimes:webp|max:20048',
             'status'         => 'required|in:0,1',
         ]);
@@ -113,8 +121,8 @@ class FrameCategoryController extends Controller
 
         // Rename the whole category folder when the name changes.
         if ($oldName !== $newName) {
-            $oldFolder = public_path("upload/frame/{$oldName}");
-            $newFolder = public_path("upload/frame/{$newName}");
+            $oldFolder = public_path($this->base() . "/{$oldName}");
+            $newFolder = public_path($this->base() . "/{$newName}");
             if (File::exists($oldFolder)) {
                 if (! File::exists($newFolder)) {
                     File::move($oldFolder, $newFolder);
@@ -126,7 +134,7 @@ class FrameCategoryController extends Controller
         }
 
         if ($request->hasFile('category_image')) {
-            $dest = public_path("upload/frame/{$newName}/category_thumbnail_frame");
+            $dest = public_path($this->base() . "/{$newName}/category_thumbnail_frame");
             if (! File::exists($dest)) {
                 File::makeDirectory($dest, 0777, true, true);
             }
@@ -157,7 +165,7 @@ class FrameCategoryController extends Controller
     {
         $category = FrameCategory::findOrFail($id);
 
-        $folder = public_path('upload/frame/' . $category->category_name);
+        $folder = public_path($this->base() . '/' . $category->category_name);
         if (File::exists($folder)) {
             File::deleteDirectory($folder);
         }

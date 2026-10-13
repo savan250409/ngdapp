@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\App;
 use App\Models\MilestoneFrame;
 use App\Models\User;
+use App\Support\AppContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
@@ -14,13 +16,16 @@ class MilestoneFrameModuleTest extends TestCase
     use RefreshDatabase;
 
     private string $token = 'test-token-123';
+    private string $appCode = 'ngd001';
     private array $dirs = [];
 
     protected function setUp(): void
     {
         parent::setUp();
         config(['services.api_token' => $this->token]);
-        $this->actingAs(User::factory()->create(['email' => 'admin@ngdapp']));
+        App::firstOrCreate(['code' => $this->appCode], ['name' => 'NGD 001', 'status' => 1]);
+        AppContext::set($this->appCode);
+        $this->actingAs(User::factory()->create(['email' => 'ngd001@admin', 'app_code' => $this->appCode]));
     }
 
     protected function tearDown(): void
@@ -35,7 +40,7 @@ class MilestoneFrameModuleTest extends TestCase
 
     private function base(int $gender, int $month): string
     {
-        $dir = public_path('upload/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . $month);
+        $dir = public_path('upload/' . $this->appCode . '/milestone_frame/' . MilestoneFrame::genderSlug($gender) . '/' . $month);
         $this->dirs[] = $dir;
 
         return $dir;
@@ -70,8 +75,8 @@ class MilestoneFrameModuleTest extends TestCase
         $this->assertCount(2, $rec->frames);
         $this->assertSame(0, $rec->frames[0]['frame_index']);
         $this->assertArrayNotHasKey('count', $rec->frames[0]);
-        $this->assertTrue(File::exists(public_path('upload/milestone_frame/boy/1/frame/' . $rec->frames[0]['image_path'])));
-        $this->assertTrue(File::exists(public_path('upload/milestone_frame/boy/1/frame_thumbnail/' . $rec->frames[0]['thumbnail_path'])));
+        $this->assertTrue(File::exists(public_path('upload/ngd001/milestone_frame/boy/1/frame/' . $rec->frames[0]['image_path'])));
+        $this->assertTrue(File::exists(public_path('upload/ngd001/milestone_frame/boy/1/frame_thumbnail/' . $rec->frames[0]['thumbnail_path'])));
 
         // Duplicate gender+month rejected.
         $this->post('/milestone-frames', [
@@ -82,10 +87,10 @@ class MilestoneFrameModuleTest extends TestCase
         ])->assertSessionHasErrors('gender');
 
         // API requires token.
-        $this->postJson('/api/v1/getMonthlyFrameByCategoryId', ['category_id' => 1])->assertStatus(401);
+        $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId', ['category_id' => 1])->assertStatus(401);
 
         // API returns month-wise data for gender 1.
-        $res = $this->postJson('/api/v1/getMonthlyFrameByCategoryId',
+        $res = $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId',
             ['category_id' => 1],
             ['Authorization' => 'Bearer ' . $this->token]
         );
@@ -97,8 +102,8 @@ class MilestoneFrameModuleTest extends TestCase
             ->assertJsonCount(1, 'data.0.thumbnail');
 
         // API validation + empty.
-        $this->postJson('/api/v1/getMonthlyFrameByCategoryId', ['category_id' => 3], ['Authorization' => 'Bearer ' . $this->token])->assertStatus(422);
-        $this->postJson('/api/v1/getMonthlyFrameByCategoryId', ['category_id' => 2], ['Authorization' => 'Bearer ' . $this->token])->assertStatus(404);
+        $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId', ['category_id' => 3], ['Authorization' => 'Bearer ' . $this->token])->assertStatus(422);
+        $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId', ['category_id' => 2], ['Authorization' => 'Bearer ' . $this->token])->assertStatus(404);
     }
 
     public function test_gender_month_change_moves_files(): void
@@ -115,7 +120,7 @@ class MilestoneFrameModuleTest extends TestCase
 
         $rec  = MilestoneFrame::where('gender', 1)->where('month', 2)->first();
         $path = $rec->frames[0]['image_path'];
-        $this->assertTrue(File::exists(public_path("upload/milestone_frame/boy/2/frame/{$path}")));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/milestone_frame/boy/2/frame/{$path}")));
 
         // Move the record to Girl · Month 5 (keep the frame).
         $this->put("/milestone-frames/{$rec->id}", [
@@ -126,8 +131,8 @@ class MilestoneFrameModuleTest extends TestCase
             'keep_thumbnail_paths' => ['e0' => ''],
         ])->assertRedirect();
 
-        $this->assertFalse(File::exists(public_path("upload/milestone_frame/boy/2/frame/{$path}")));
-        $this->assertTrue(File::exists(public_path("upload/milestone_frame/girl/5/frame/{$path}")));
+        $this->assertFalse(File::exists(public_path("upload/ngd001/milestone_frame/boy/2/frame/{$path}")));
+        $this->assertTrue(File::exists(public_path("upload/ngd001/milestone_frame/girl/5/frame/{$path}")));
         $this->assertSame(2, $rec->fresh()->gender);
         $this->assertSame(5, $rec->fresh()->month);
     }
@@ -147,7 +152,7 @@ class MilestoneFrameModuleTest extends TestCase
         $this->assertSame('c.webp', $frames[0]['image_path']);
         $this->assertSame(0, $frames[0]['frame_index']);
 
-        $res = $this->postJson('/api/v1/getMonthlyFrameByCategoryId', ['category_id' => 1], ['Authorization' => 'Bearer ' . $this->token]);
+        $res = $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId', ['category_id' => 1], ['Authorization' => 'Bearer ' . $this->token]);
         $urls = $res->json('data.0.frame');
         $this->assertStringContainsString('/c.webp', $urls[0]);
         $this->assertStringContainsString('/a.webp', $urls[1]);
@@ -159,7 +164,7 @@ class MilestoneFrameModuleTest extends TestCase
             ['image_path' => 'frame one.webp', 'frame_index' => 0, 'thumbnail_path' => 'thumb one.webp'],
         ]]);
 
-        $res = $this->postJson('/api/v1/getMonthlyFrameByCategoryId', ['category_id' => 2], ['Authorization' => 'Bearer ' . $this->token]);
+        $res = $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId', ['category_id' => 2], ['Authorization' => 'Bearer ' . $this->token]);
         $res->assertStatus(200);
         $f = $res->json('data.0.frame.0');
         $t = $res->json('data.0.thumbnail.0');

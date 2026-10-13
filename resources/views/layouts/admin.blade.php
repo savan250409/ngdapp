@@ -218,6 +218,11 @@
             <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}" title="Dashboard">
                 <i class="bi bi-grid-1x2-fill"></i> <span class="label">Dashboard</span>
             </a>
+            @if($isSuperAdmin ?? false)
+                <a class="nav-link {{ request()->routeIs('apps.*') ? 'active' : '' }}" href="{{ route('apps.index') }}" title="Apps">
+                    <i class="bi bi-grid-3x3-gap-fill"></i> <span class="label">Apps</span>
+                </a>
+            @endif
             <span class="nav-section">Frames Module</span>
             <a class="nav-link {{ request()->routeIs('frame-categories.*') ? 'active' : '' }}" href="{{ route('frame-categories.index') }}" title="Frame Categories">
                 <i class="bi bi-collection-fill"></i> <span class="label">Frame Categories</span>
@@ -250,6 +255,26 @@
             <button class="icon-btn" id="sidebarToggle" title="Toggle sidebar"><i class="bi bi-list"></i></button>
             <div class="crumb d-none d-sm-block">@yield('breadcrumb')<b>@yield('title', 'Dashboard')</b></div>
             <div class="ms-auto d-flex align-items-center gap-2">
+                @if($isSuperAdmin ?? false)
+                    <div class="dropdown">
+                        <button class="btn btn-light border d-flex align-items-center gap-2 dropdown-toggle" data-bs-toggle="dropdown" style="border-radius:9px;color:var(--ink);">
+                            <i class="bi bi-grid-3x3-gap-fill text-primary"></i>
+                            <span class="fw-semibold small">{{ $appCode ?? '—' }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li><h6 class="dropdown-header">Switch app</h6></li>
+                            @foreach(($currentApps ?? []) as $a)
+                                <li><a class="dropdown-item app-switch d-flex justify-content-between {{ $a->code === ($appCode ?? null) ? 'active' : '' }}" href="#" data-code="{{ $a->code }}">
+                                    <span class="fw-semibold">{{ $a->code }}</span><span class="small text-muted ms-3">{{ $a->name }}</span>
+                                </a></li>
+                            @endforeach
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ route('apps.index') }}"><i class="bi bi-gear me-1"></i> Manage apps</a></li>
+                        </ul>
+                    </div>
+                @elseif(!empty($appCode))
+                    <span class="badge-pill" style="background:var(--brand-50);color:var(--brand-600);font-weight:700" title="Your app"><i class="bi bi-grid-3x3-gap-fill me-1"></i>{{ $appCode }}</span>
+                @endif
                 <button class="icon-btn" id="themeToggle" title="Toggle light / dark"><i class="bi bi-moon-stars" id="themeIcon"></i></button>
                 <div class="dropdown">
                     <button class="btn d-flex align-items-center gap-2 p-1 pe-2 dropdown-toggle" data-bs-toggle="dropdown" style="border:1px solid var(--line);border-radius:50rem;color:var(--ink);">
@@ -287,6 +312,19 @@
             const flash = sessionStorage.getItem('ngd_flash');
             if (flash) { sessionStorage.removeItem('ngd_flash'); Toast.fire({ icon:'success', title: flash }); }
         } catch (e) {}
+
+        // Show / hide a spinner inside a submit button while an AJAX request is in flight.
+        window.setBtnLoading = function (btn, loading, loadingText) {
+            if (!btn) return;
+            if (loading) {
+                if (btn.dataset.originalHtml === undefined) btn.dataset.originalHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + (loadingText || 'Saving…');
+            } else {
+                btn.disabled = false;
+                if (btn.dataset.originalHtml !== undefined) { btn.innerHTML = btn.dataset.originalHtml; delete btn.dataset.originalHtml; }
+            }
+        };
 
         // Turn a validation/XHR error into an on-screen popup (no redirect, form kept intact).
         window.showAjaxError = function (xhr) {
@@ -332,6 +370,14 @@
             });
             bd.addEventListener('click', () => { sb.classList.remove('open'); bd.classList.remove('show'); });
         })();
+
+        // Super-admin: switch the active app.
+        $(document).on('click', '.app-switch', function (e) {
+            e.preventDefault();
+            const code = $(this).data('code');
+            $.post(@json(route('apps.switch')), { code: code }, function () { location.reload(); })
+                .fail(function () { Swal.fire({ icon:'error', title:'Could not switch app' }); });
+        });
 
         @if(session('success'))
             Toast.fire({ icon:'success', title:@json(session('success')) });

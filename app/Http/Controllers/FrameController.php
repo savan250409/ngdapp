@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Frame;
 use App\Models\FrameCategory;
+use App\Support\AppContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -31,12 +32,12 @@ class FrameController extends Controller
 
     private function frameDir(FrameCategory $category): string
     {
-        return public_path('upload/frame/' . $category->category_name . '/frame');
+        return public_path('upload/' . AppContext::code() . '/frame/' . $category->category_name . '/frame');
     }
 
     private function thumbDir(FrameCategory $category): string
     {
-        return public_path('upload/frame/' . $category->category_name . '/frame_thumbnail');
+        return public_path('upload/' . AppContext::code() . '/frame/' . $category->category_name . '/frame_thumbnail');
     }
 
     private function moveFile(string $from, string $to): void
@@ -298,14 +299,15 @@ class FrameController extends Controller
         $category = FrameCategory::findOrFail($id);
         $record   = Frame::where('category_id', $id)->first();
         $cat      = rawurlencode($category->category_name);
+        $appBase  = 'upload/' . AppContext::code() . '/frame/' . $cat;
 
         $frames = collect($record->frames ?? [])
             ->sortBy('frame_index')
             ->values()
-            ->map(function ($f) use ($cat) {
+            ->map(function ($f) use ($appBase) {
                 $thumb     = $f['thumbnail_path'] ?? null;
-                $frameUrl  = url('upload/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
-                $thumbUrl  = $thumb ? url('upload/frame/' . $cat . '/frame_thumbnail/' . rawurlencode($thumb)) : null;
+                $frameUrl  = url($appBase . '/frame/' . rawurlencode($f['image_path']));
+                $thumbUrl  = $thumb ? url($appBase . '/frame_thumbnail/' . rawurlencode($thumb)) : null;
 
                 return [
                     'image_path'    => $f['image_path'],
