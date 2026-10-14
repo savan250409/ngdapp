@@ -140,7 +140,7 @@ class Ngd001FrameController extends Controller
 
     public function index()
     {
-        $categories      = Ngd001FrameCategory::all();
+        $categories      = Ngd001FrameCategory::orderBy('sort_order')->orderBy('id', 'desc')->get();
         $usedCategoryIds = Ngd001Frame::pluck('category_id')->toArray();
         $query           = Ngd001Frame::with('category')->orderBy('id', 'DESC');
 
@@ -173,7 +173,7 @@ class Ngd001FrameController extends Controller
 
     public function create()
     {
-        $categories      = Ngd001FrameCategory::all();
+        $categories      = Ngd001FrameCategory::orderBy('sort_order')->orderBy('id', 'desc')->get();
         $usedCategoryIds = Ngd001Frame::pluck('category_id')->toArray();
 
         return view('ngd001.frames.form', compact('categories', 'usedCategoryIds'));
@@ -218,7 +218,7 @@ class Ngd001FrameController extends Controller
     public function edit($id)
     {
         $frame           = Ngd001Frame::with('category')->findOrFail($id);
-        $categories      = Ngd001FrameCategory::all();
+        $categories      = Ngd001FrameCategory::orderBy('sort_order')->orderBy('id', 'desc')->get();
         $usedCategoryIds = Ngd001Frame::where('id', '!=', $id)->pluck('category_id')->toArray();
 
         return view('ngd001.frames.form', compact('frame', 'categories', 'usedCategoryIds'));

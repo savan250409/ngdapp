@@ -224,6 +224,52 @@ class FrameModuleTest extends TestCase
         $this->assertArrayNotHasKey('sort_order', $res->json('data.0'));
     }
 
+    public function test_last_added_category_shows_first_and_respects_index_order(): void
+    {
+        $cat1Name = 'First Added ' . uniqid();
+        $this->post('/frame-categories', ['category_name' => $cat1Name, 'status' => 1])->assertRedirect();
+        $cat1 = Ngd001FrameCategory::where('category_name', $cat1Name)->first();
+        $this->assertSame(1, $cat1->sort_order);
+
+        $cat2Name = 'Second Added ' . uniqid();
+        $this->post('/frame-categories', ['category_name' => $cat2Name, 'status' => 1])->assertRedirect();
+        $cat2 = Ngd001FrameCategory::where('category_name', $cat2Name)->first();
+        $this->assertSame(1, $cat2->sort_order);
+        $this->assertSame(2, $cat1->fresh()->sort_order);
+
+        // Add frames so they appear in API
+        Ngd001Frame::create(['category_id' => $cat1->id, 'frames' => [['image_path' => '1.webp', 'frame_index' => 0, 'thumbnail_path' => null]]]);
+        Ngd001Frame::create(['category_id' => $cat2->id, 'frames' => [['image_path' => '2.webp', 'frame_index' => 0, 'thumbnail_path' => null]]]);
+
+        // API: Category 2 (last added) shows first
+        $res = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res->assertStatus(200)
+            ->assertJsonPath('data.0.category_name', $cat2Name)
+            ->assertJsonPath('data.1.category_name', $cat1Name);
+
+        // Reorder via Index popup: Cat1, Cat2
+        $this->post('/frame-categories/order', ['order' => [$cat1->id, $cat2->id]])->assertJsonPath('success', true);
+        $res = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res->assertStatus(200)
+            ->assertJsonPath('data.0.category_name', $cat1Name)
+            ->assertJsonPath('data.1.category_name', $cat2Name);
+
+        // Add Cat 3: must show first, followed by Cat1, Cat2
+        $cat3Name = 'Third Added ' . uniqid();
+        $this->post('/frame-categories', ['category_name' => $cat3Name, 'status' => 1])->assertRedirect();
+        $cat3 = Ngd001FrameCategory::where('category_name', $cat3Name)->first();
+        $this->assertSame(1, $cat3->sort_order);
+        $this->assertSame(2, $cat1->fresh()->sort_order);
+        $this->assertSame(3, $cat2->fresh()->sort_order);
+
+        Ngd001Frame::create(['category_id' => $cat3->id, 'frames' => [['image_path' => '3.webp', 'frame_index' => 0, 'thumbnail_path' => null]]]);
+        $res = $this->getJson('/api/ngd001/v1/getFrameCategories', ['Authorization' => 'Bearer ' . $this->token]);
+        $res->assertStatus(200)
+            ->assertJsonPath('data.0.category_name', $cat3Name)
+            ->assertJsonPath('data.1.category_name', $cat1Name)
+            ->assertJsonPath('data.2.category_name', $cat2Name);
+    }
+
     public function test_frame_edit_keep_replace_remove_add_and_reindex(): void
     {
         $name = 'EditCat ' . uniqid();

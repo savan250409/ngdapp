@@ -32,6 +32,7 @@ class Ngd001FrameApiController extends Controller
         }
 
         $frameRecords = Ngd001Frame::whereIn('category_id', $categories->pluck('id'))
+            ->orderBy('id', 'desc')
             ->get()
             ->groupBy('category_id');
 
@@ -109,7 +110,7 @@ class Ngd001FrameApiController extends Controller
         $encoded = $category->category_name;
         $up = url('/') . '/upload/' . (AppContext::code() ?: 'ngd001') . '/';
         $allFrames = [];
-        foreach (Ngd001Frame::where('category_id', $request->category_id)->get() as $record) {
+        foreach (Ngd001Frame::where('category_id', $request->category_id)->orderBy('id', 'desc')->get() as $record) {
             foreach ($record->frames ?? [] as $f) {
                 $thumb = $f['thumbnail_path'] ?? null;
                 $allFrames[] = [

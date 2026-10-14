@@ -36,7 +36,7 @@ class Ngd001FrameCategoryController extends Controller
         ]);
 
         // All categories in their saved sequence (for the "Index" reorder popup).
-        $allCategories = Ngd001FrameCategory::orderBy('sort_order')->orderBy('id')->get();
+        $allCategories = Ngd001FrameCategory::orderBy('sort_order')->orderBy('id', 'desc')->get();
 
         if (request()->ajax()) {
             $view = view('ngd001.frame-categories.index', compact('categories', 'allCategories'))->renderSections();
@@ -88,12 +88,16 @@ class Ngd001FrameCategoryController extends Controller
             $request->file('category_image')->move($dest, $fileName);
         }
 
-        Ngd001FrameCategory::create([
-            'category_name' => $request->category_name,
-            'category_image' => $fileName,
-            'status' => $request->status ?? 1,
-            'sort_order' => (int) Ngd001FrameCategory::max('sort_order') + 1, // append to the end
-        ]);
+        DB::transaction(function () use ($request, $fileName) {
+            Ngd001FrameCategory::query()->increment('sort_order');
+
+            Ngd001FrameCategory::create([
+                'category_name' => $request->category_name,
+                'category_image' => $fileName,
+                'status' => $request->status ?? 1,
+                'sort_order' => 1, // last added category placed first
+            ]);
+        });
 
         if ($request->ajax()) {
             return response()->json(['success' => true, 'message' => 'Frame category added successfully!']);
