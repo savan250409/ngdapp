@@ -88,8 +88,9 @@ class FrameModuleTest extends TestCase
         $frame = Ngd001Frame::where('category_id', $category->id)->first();
         $this->assertNotNull($frame);
         $this->assertCount(2, $frame->frames);
-        $this->assertSame(0, $frame->frames[0]['frame_index']);
-        $this->assertSame(1, $frame->frames[1]['frame_index']);
+        // Newest-first: the first builder row (n0) gets the HIGHEST frame_index.
+        $this->assertSame(1, $frame->frames[0]['frame_index']);
+        $this->assertSame(0, $frame->frames[1]['frame_index']);
         $this->assertNotNull($frame->frames[0]['thumbnail_path']);
         $this->assertNull($frame->frames[1]['thumbnail_path']);
         // Count / Pro are no longer stored.
@@ -303,10 +304,10 @@ class FrameModuleTest extends TestCase
         $frame->refresh();
         $frames = $frame->frames;
 
-        // 2 frames: new one first (index 0), kept one second (index 1).
+        // 2 frames: new one first (top → highest index), kept one second.
         $this->assertCount(2, $frames);
-        $this->assertSame(0, $frames[0]['frame_index']);
-        $this->assertSame(1, $frames[1]['frame_index']);
+        $this->assertSame(1, $frames[0]['frame_index']);
+        $this->assertSame(0, $frames[1]['frame_index']);
         $this->assertSame($keepPath, $frames[1]['image_path']); // kept frame
         $this->assertArrayNotHasKey('count', $frames[0]);
         $this->assertArrayNotHasKey('is_pro', $frames[0]);
@@ -331,8 +332,9 @@ class FrameModuleTest extends TestCase
             ->assertJsonPath('success', true);
 
         $frames = Ngd001Frame::where('category_id', $c->id)->first()->frames;
+        // Array stays in the chosen order; top (c) gets the highest frame_index.
         $this->assertSame('c.webp', $frames[0]['image_path']);
-        $this->assertSame(0, $frames[0]['frame_index']);
+        $this->assertSame(2, $frames[0]['frame_index']);
         $this->assertSame('a.webp', $frames[1]['image_path']);
         $this->assertSame('b.webp', $frames[2]['image_path']);
 

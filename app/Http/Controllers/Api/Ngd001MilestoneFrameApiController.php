@@ -43,7 +43,7 @@ class Ngd001MilestoneFrameApiController extends Controller
 
             $frames = [];
             $thumbnails = [];
-            foreach (collect($record->frames ?? [])->sortBy('frame_index') as $item) {
+            foreach (collect($record->frames ?? [])->sortByDesc('frame_index') as $item) { // newest first
                 if (! empty($item['image_path'])) {
                     $frames[] = str_replace(' ', '%20', $framePath) . rawurlencode($item['image_path']);
                 }

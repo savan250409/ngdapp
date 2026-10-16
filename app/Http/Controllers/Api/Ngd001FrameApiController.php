@@ -56,7 +56,7 @@ class Ngd001FrameApiController extends Controller
                     ];
                 }
             }
-            usort($allFrames, fn($a, $b) => $a['sort'] <=> $b['sort']);
+            usort($allFrames, fn($a, $b) => $b['sort'] <=> $a['sort']); // newest (highest frame_index) first
 
             $category->frames = array_values(array_map(fn($i) => [
                 'frame_full_url' => $i['frame_full_url'],
@@ -128,7 +128,7 @@ class Ngd001FrameApiController extends Controller
                 'data' => [],
             ], 404);
         }
-        usort($allFrames, fn($a, $b) => $a['sort'] <=> $b['sort']);
+        usort($allFrames, fn($a, $b) => $b['sort'] <=> $a['sort']); // newest (highest frame_index) first
 
         return response()->json([
             'status' => true,

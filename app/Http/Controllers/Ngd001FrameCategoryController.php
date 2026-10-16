@@ -155,11 +155,23 @@ class Ngd001FrameCategoryController extends Controller
             'status' => $request->status,
         ]);
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true, 'message' => 'Frame category updated successfully!']);
+        $params = array_filter([
+            'page'          => $request->input('page') > 1 ? $request->input('page') : null,
+            'search'        => $request->input('search'),
+            'status_filter' => $request->input('status_filter'),
+            'per_page'      => $request->input('per_page'),
+        ]);
+        $redirectUrl = route('frame-categories.index', $params);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Frame category updated successfully!',
+                'redirect' => $redirectUrl,
+            ]);
         }
 
-        return redirect()->route('frame-categories.index')
+        return redirect()->to($redirectUrl)
             ->with('success', 'Frame category updated successfully!');
     }
 
@@ -174,12 +186,24 @@ class Ngd001FrameCategoryController extends Controller
 
         $category->delete(); // cascade removes its frame record
 
-        if (request()->ajax()) {
+        if (request()->ajax() || request()->wantsJson()) {
             return response()->json(['success' => true, 'message' => 'Frame category deleted successfully!']);
         }
 
-        return redirect()->route('frame-categories.index')
-            ->with('success', 'Frame category deleted successfully!');
+        $total = Ngd001FrameCategory::count();
+        $perPage = (int) request('per_page', 10);
+        $lastPage = (int) max(1, ceil($total / $perPage));
+        $page = (int) request('page', 1);
+        if ($page > $lastPage) {
+            $page = $lastPage;
+        }
+
+        return redirect()->route('frame-categories.index', array_filter([
+            'page'          => $page > 1 ? $page : null,
+            'search'        => request('search'),
+            'status_filter' => request('status_filter'),
+            'per_page'      => request('per_page'),
+        ]))->with('success', 'Frame category deleted successfully!');
     }
 
     public function toggleStatus($id)

@@ -145,6 +145,13 @@ class Ngd001MilestoneFrameController extends Controller
             }
         }
 
+        // Top of the builder (newest / last-edited) gets the HIGHEST frame_index,
+        // so the descending API & lists return the last added/edited frame first.
+        $n = count($frames);
+        foreach ($frames as $pos => $f) {
+            $frames[$pos]['frame_index'] = $n - 1 - $pos;
+        }
+
         return $frames;
     }
 
@@ -326,9 +333,17 @@ class Ngd001MilestoneFrameController extends Controller
             throw $e;
         }
 
-        return $request->ajax()
-            ? response()->json(['success' => true, 'message' => 'Milestone frame record updated successfully!'])
-            : redirect()->route('milestone-frames.index')->with('success', 'Milestone frame record updated successfully!');
+        $params = array_filter([
+            'page'          => $request->input('page') > 1 ? $request->input('page') : null,
+            'gender_filter' => $request->input('gender_filter'),
+            'month_filter'  => $request->input('month_filter'),
+            'per_page'      => $request->input('per_page'),
+        ]);
+        $redirectUrl = route('milestone-frames.index', $params);
+
+        return ($request->ajax() || $request->wantsJson())
+            ? response()->json(['success' => true, 'message' => 'Milestone frame record updated successfully!', 'redirect' => $redirectUrl])
+            : redirect()->to($redirectUrl)->with('success', 'Milestone frame record updated successfully!');
     }
 
     /** JSON list of a record's frames (ordered), for the Index / View-more popups. */
@@ -338,7 +353,7 @@ class Ngd001MilestoneFrameController extends Controller
         $base   = 'upload/' . (AppContext::code() ?: 'ngd001') . '/milestone_frame/' . $record->gender_slug . '/' . (int) $record->month;
 
         $frames = collect($record->frames ?? [])
-            ->sortBy('frame_index')
+            ->sortByDesc('frame_index')
             ->values()
             ->map(function ($f) use ($base) {
                 $thumb    = $f['thumbnail_path'] ?? null;
@@ -383,6 +398,12 @@ class Ngd001MilestoneFrameController extends Controller
             $ordered[] = $f;
         }
 
+        // Top of the reorder list (newest) gets the highest frame_index (descending API).
+        $n = count($ordered);
+        foreach ($ordered as $pos => $f) {
+            $ordered[$pos]['frame_index'] = $n - 1 - $pos;
+        }
+
         $record->update(['frames' => $ordered]);
 
         return response()->json(['success' => true, 'message' => 'Frame order saved successfully!']);
@@ -412,10 +433,23 @@ class Ngd001MilestoneFrameController extends Controller
             File::deleteDirectory($thumbDest);
         }
 
-        if (request()->ajax()) {
+        if (request()->ajax() || request()->wantsJson()) {
             return response()->json(['success' => true, 'message' => 'Milestone frame record deleted successfully!']);
         }
 
-        return redirect()->route('milestone-frames.index')->with('success', 'Milestone frame record deleted successfully!');
+        $total = Ngd001MilestoneFrame::count();
+        $perPage = (int) request('per_page', 10);
+        $lastPage = (int) max(1, ceil($total / $perPage));
+        $page = (int) request('page', 1);
+        if ($page > $lastPage) {
+            $page = $lastPage;
+        }
+
+        return redirect()->route('milestone-frames.index', array_filter([
+            'page'          => $page > 1 ? $page : null,
+            'gender_filter' => request('gender_filter'),
+            'month_filter'  => request('month_filter'),
+            'per_page'      => request('per_page'),
+        ]))->with('success', 'Milestone frame record deleted successfully!');
     }
 }

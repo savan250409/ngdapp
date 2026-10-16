@@ -12,7 +12,11 @@
         }
         return url($base . '/frame/' . rawurlencode($f['image_path']));
     };
-    $existing = $isEdit ? collect($frame->frames ?? [])->sortBy('frame_index')->values() : collect();
+    $existing = $isEdit ? collect($frame->frames ?? [])->sortByDesc('frame_index')->values() : collect();
+    $msListUrl = route('milestone-frames.index', array_filter([
+        'page' => request('page'), 'gender_filter' => request('gender_filter'),
+        'month_filter' => request('month_filter'), 'per_page' => request('per_page'),
+    ]));
 @endphp
 
 @push('styles')
@@ -31,14 +35,18 @@
         <h1>{{ $isEdit ? 'Edit Milestone Record' : 'Add Milestone Record' }}</h1>
         <p>Pick a gender &amp; month, add frames, then <b>drag</b> to set the order.</p>
     </div>
-    <a href="{{ route('milestone-frames.index') }}" class="btn btn-light border"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    <a href="{{ route('milestone-frames.index', array_filter(['page' => request('page'), 'gender_filter' => request('gender_filter'), 'month_filter' => request('month_filter'), 'per_page' => request('per_page')])) }}" class="btn btn-light border"><i class="bi bi-arrow-left me-1"></i> Back</a>
 </div>
 
 <form id="frameForm" method="POST" enctype="multipart/form-data"
-      action="{{ $isEdit ? route('milestone-frames.update', $frame->id) : route('milestone-frames.store') }}">
+      action="{{ $isEdit ? route('milestone-frames.update', array_merge(['id' => $frame->id], array_filter(['page' => request('page'), 'gender_filter' => request('gender_filter'), 'month_filter' => request('month_filter'), 'per_page' => request('per_page')]))) : route('milestone-frames.store') }}">
     @csrf
     @if($isEdit) @method('PUT') @endif
     <input type="hidden" name="frame_order" id="frameOrder">
+    <input type="hidden" name="page" value="{{ request('page', 1) }}">
+    <input type="hidden" name="gender_filter" value="{{ request('gender_filter') }}">
+    <input type="hidden" name="month_filter" value="{{ request('month_filter') }}">
+    <input type="hidden" name="per_page" value="{{ request('per_page') }}">
 
     <div class="card mb-3">
         <div class="card-body">
@@ -111,7 +119,7 @@
 
     <div>
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i> {{ $isEdit ? 'Update Record' : 'Save Record' }}</button>
-        <a href="{{ route('milestone-frames.index') }}" class="btn btn-light border">Cancel</a>
+        <a href="{{ route('milestone-frames.index', array_filter(['page' => request('page'), 'gender_filter' => request('gender_filter'), 'month_filter' => request('month_filter'), 'per_page' => request('per_page')])) }}" class="btn btn-light border">Cancel</a>
     </div>
 </form>
 @endsection
@@ -164,7 +172,8 @@
     }
 
     function addRow() {
-        rows.insertAdjacentHTML('beforeend', newRowHtml('n' + (idx++)));
+        // Newest frame goes first (top).
+        rows.insertAdjacentHTML('afterbegin', newRowHtml('n' + (idx++)));
         renumber();
     }
 
@@ -230,7 +239,7 @@
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             success: function (res) {
                 try { sessionStorage.setItem('ngd_flash', res.message || 'Saved'); } catch (err) {}
-                window.location = @json(route('milestone-frames.index'));
+                window.location = res.redirect || @json($msListUrl);
             },
             error: function (xhr) { window.showAjaxError(xhr); window.setBtnLoading(btn, false); }
         });

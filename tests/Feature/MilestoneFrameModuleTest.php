@@ -73,7 +73,8 @@ class MilestoneFrameModuleTest extends TestCase
         $rec = Ngd001MilestoneFrame::where('gender', 1)->where('month', 1)->first();
         $this->assertNotNull($rec);
         $this->assertCount(2, $rec->frames);
-        $this->assertSame(0, $rec->frames[0]['frame_index']);
+        // Newest-first: the first builder row (n0) gets the HIGHEST frame_index.
+        $this->assertSame(1, $rec->frames[0]['frame_index']);
         $this->assertArrayNotHasKey('count', $rec->frames[0]);
         $this->assertTrue(File::exists(public_path('upload/ngd001/milestone_frame/boy/1/frame/' . $rec->frames[0]['image_path'])));
         $this->assertTrue(File::exists(public_path('upload/ngd001/milestone_frame/boy/1/frame_thumbnail/' . $rec->frames[0]['thumbnail_path'])));
@@ -149,8 +150,9 @@ class MilestoneFrameModuleTest extends TestCase
             ->assertJsonPath('success', true);
 
         $frames = $rec->fresh()->frames;
+        // Array stays in the chosen order; top (c) gets the highest frame_index.
         $this->assertSame('c.webp', $frames[0]['image_path']);
-        $this->assertSame(0, $frames[0]['frame_index']);
+        $this->assertSame(2, $frames[0]['frame_index']);
 
         $res = $this->postJson('/api/ngd001/v1/getMonthlyFrameByCategoryId', ['category_id' => 1], ['Authorization' => 'Bearer ' . $this->token]);
         $urls = $res->json('data.0.frame');

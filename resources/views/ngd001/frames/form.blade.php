@@ -12,7 +12,11 @@
         }
         return url('upload/' . $effectiveApp . '/frame/' . $cat . '/frame/' . rawurlencode($f['image_path']));
     };
-    $existing = $isEdit ? collect($frame->frames ?? [])->sortBy('frame_index')->values() : collect();
+    $existing = $isEdit ? collect($frame->frames ?? [])->sortByDesc('frame_index')->values() : collect();
+    $framesListUrl = route('frames.index', array_filter([
+        'page' => request('page'), 'search' => request('search'),
+        'category_filter' => request('category_filter'), 'per_page' => request('per_page'),
+    ]));
 @endphp
 
 @push('styles')
@@ -32,14 +36,18 @@
         <h1>{{ $isEdit ? 'Edit Frame Record' : 'Add Frame Record' }}</h1>
         <p>Add frames, then <b>drag</b> them to set the order (top = first in the API).</p>
     </div>
-    <a href="{{ route('frames.index') }}" class="btn btn-light border"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    <a href="{{ route('frames.index', array_filter(['page' => request('page'), 'search' => request('search'), 'category_filter' => request('category_filter'), 'per_page' => request('per_page')])) }}" class="btn btn-light border"><i class="bi bi-arrow-left me-1"></i> Back</a>
 </div>
 
 <form id="frameForm" method="POST" enctype="multipart/form-data"
-      action="{{ $isEdit ? route('frames.update', $frame->id) : route('frames.store') }}">
+      action="{{ $isEdit ? route('frames.update', array_merge(['id' => $frame->id], array_filter(['page' => request('page'), 'search' => request('search'), 'category_filter' => request('category_filter'), 'per_page' => request('per_page')]))) : route('frames.store') }}">
     @csrf
     @if($isEdit) @method('PUT') @endif
     <input type="hidden" name="frame_order" id="frameOrder">
+    <input type="hidden" name="page" value="{{ request('page', 1) }}">
+    <input type="hidden" name="search" value="{{ request('search') }}">
+    <input type="hidden" name="category_filter" value="{{ request('category_filter') }}">
+    <input type="hidden" name="per_page" value="{{ request('per_page') }}">
 
     <div class="card mb-3">
         <div class="card-body">
@@ -109,7 +117,7 @@
 
     <div>
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i> {{ $isEdit ? 'Update Record' : 'Save Record' }}</button>
-        <a href="{{ route('frames.index') }}" class="btn btn-light border">Cancel</a>
+        <a href="{{ route('frames.index', array_filter(['page' => request('page'), 'search' => request('search'), 'category_filter' => request('category_filter'), 'per_page' => request('per_page')])) }}" class="btn btn-light border">Cancel</a>
     </div>
 </form>
 @endsection
@@ -162,7 +170,8 @@
 
     function addRow() {
         const key = 'n' + (idx++);
-        rows.insertAdjacentHTML('beforeend', newRowHtml(key));
+        // Newest frame goes first (top).
+        rows.insertAdjacentHTML('afterbegin', newRowHtml(key));
         renumber();
     }
 
@@ -215,7 +224,7 @@
             success: function (res) {
                 // Errors never reach here; on success go to the list with a toast.
                 try { sessionStorage.setItem('ngd_flash', res.message || 'Saved'); } catch (err) {}
-                window.location = @json(route('frames.index'));
+                window.location = res.redirect || @json($framesListUrl);
             },
             error: function (xhr) { window.showAjaxError(xhr); window.setBtnLoading(btn, false); }
         });

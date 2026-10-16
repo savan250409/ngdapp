@@ -135,6 +135,13 @@ class Ngd001FrameController extends Controller
             }
         }
 
+        // Top of the builder (newest / last-edited) gets the HIGHEST frame_index,
+        // so the descending API & lists return the last added/edited frame first.
+        $n = count($frames);
+        foreach ($frames as $pos => $f) {
+            $frames[$pos]['frame_index'] = $n - 1 - $pos;
+        }
+
         return $frames;
     }
 
@@ -284,9 +291,17 @@ class Ngd001FrameController extends Controller
             throw $e;
         }
 
-        return $request->ajax()
-            ? response()->json(['success' => true, 'message' => 'Frame record updated successfully!'])
-            : redirect()->route('frames.index')->with('success', 'Frame record updated successfully!');
+        $params = array_filter([
+            'page'            => $request->input('page') > 1 ? $request->input('page') : null,
+            'search'          => $request->input('search'),
+            'category_filter' => $request->input('category_filter'),
+            'per_page'        => $request->input('per_page'),
+        ]);
+        $redirectUrl = route('frames.index', $params);
+
+        return ($request->ajax() || $request->wantsJson())
+            ? response()->json(['success' => true, 'message' => 'Frame record updated successfully!', 'redirect' => $redirectUrl])
+            : redirect()->to($redirectUrl)->with('success', 'Frame record updated successfully!');
     }
 
     /**
@@ -300,7 +315,7 @@ class Ngd001FrameController extends Controller
         $appBase  = 'upload/' . (AppContext::code() ?: 'ngd001') . '/frame/' . $cat;
 
         $frames = collect($record->frames ?? [])
-            ->sortBy('frame_index')
+            ->sortByDesc('frame_index')
             ->values()
             ->map(function ($f) use ($appBase) {
                 $thumb     = $f['thumbnail_path'] ?? null;
@@ -347,6 +362,12 @@ class Ngd001FrameController extends Controller
             $ordered[] = $f;
         }
 
+        // Top of the reorder list (newest) gets the highest frame_index (descending API).
+        $n = count($ordered);
+        foreach ($ordered as $pos => $f) {
+            $ordered[$pos]['frame_index'] = $n - 1 - $pos;
+        }
+
         $record->update(['frames' => $ordered]);
 
         return response()->json(['success' => true, 'message' => 'Frame order saved successfully!']);
@@ -379,6 +400,23 @@ class Ngd001FrameController extends Controller
             }
         }
 
-        return redirect()->route('frames.index')->with('success', 'Frame record deleted successfully!');
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Frame record deleted successfully!']);
+        }
+
+        $total = Ngd001Frame::count();
+        $perPage = (int) request('per_page', 10);
+        $lastPage = (int) max(1, ceil($total / $perPage));
+        $page = (int) request('page', 1);
+        if ($page > $lastPage) {
+            $page = $lastPage;
+        }
+
+        return redirect()->route('frames.index', array_filter([
+            'page'            => $page > 1 ? $page : null,
+            'search'          => request('search'),
+            'category_filter' => request('category_filter'),
+            'per_page'        => request('per_page'),
+        ]))->with('success', 'Frame record deleted successfully!');
     }
 }

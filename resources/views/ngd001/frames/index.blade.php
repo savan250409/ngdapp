@@ -32,7 +32,7 @@
                 <td>
                     @php $count = count($record->frames ?? []); @endphp
                     <div class="frame-strip d-flex flex-wrap align-items-center gap-2">
-                        @foreach(collect($record->frames ?? [])->sortBy('frame_index')->take(3) as $f)
+                        @foreach(collect($record->frames ?? [])->sortByDesc('frame_index')->take(3) as $f)
                             <img src="{{ $frameImgUrl($record->category->category_name ?? '', $f) }}" alt="" loading="lazy" decoding="async" width="42" height="42">
                         @endforeach
                         @if($count > 0)
@@ -47,9 +47,10 @@
                     </div>
                 </td>
                 <td class="text-end">
-                    <a href="{{ route('frames.edit', $record->id) }}" class="btn btn-sm btn-light border btn-icon" title="Edit"><i class="bi bi-pencil"></i></a>
+                    <a href="{{ route('frames.edit', array_merge(['id' => $record->id], array_filter(['page' => $frames->currentPage() > 1 ? $frames->currentPage() : null, 'search' => request('search'), 'category_filter' => request('category_filter'), 'per_page' => request('per_page')]))) }}" class="btn btn-sm btn-light border btn-icon" title="Edit"><i class="bi bi-pencil"></i></a>
                     <form class="d-inline form-delete" method="POST" action="{{ route('frames.destroy', $record->id) }}">
                         @csrf @method('DELETE')
+                        <input type="hidden" name="page" class="input-current-page" value="{{ $frames->currentPage() }}">
                         <button type="submit" class="btn btn-sm btn-light border btn-icon text-danger" title="Delete"><i class="bi bi-trash"></i></button>
                     </form>
                 </td>
@@ -292,23 +293,62 @@
         }).always(function () { btn.disabled = false; });
     });
 
+    let currentPage = parseInt(new URL(window.location.href).searchParams.get('page'), 10) || {{ $frames->currentPage() }};
+
+    function syncUrl(page) {
+        const url = new URL(window.location.href);
+        if (page > 1) {
+            url.searchParams.set('page', page);
+        } else {
+            url.searchParams.delete('page');
+        }
+        const search = $('#search').val();
+        const cat = $('#category_filter').val();
+        const perPage = $('#per_page').val();
+        if (search) url.searchParams.set('search', search); else url.searchParams.delete('search');
+        if (cat) url.searchParams.set('category_filter', cat); else url.searchParams.delete('category_filter');
+        if (perPage && perPage != 10) url.searchParams.set('per_page', perPage); else url.searchParams.delete('per_page');
+        window.history.replaceState({}, '', url.toString());
+    }
+
     function reload(page) {
+        if (typeof page !== 'undefined' && page !== null) {
+            currentPage = parseInt(page, 10) || 1;
+        }
         const params = {
             search: $('#search').val(),
             category_filter: $('#category_filter').val(),
             per_page: $('#per_page').val(),
         };
-        if (page) params.page = page;
+        if (currentPage > 1) params.page = currentPage;
+
+        syncUrl(currentPage);
+
         $.get(listUrl, params, function (res) {
             $('#tableWrap').html(res.table);
             $('#paginationWrap').html(res.pagination);
             $('#totalCount').text(res.total);
+            $('.input-current-page').val(currentPage);
+
+            const perPage = parseInt($('#per_page').val(), 10) || 10;
+            const maxPage = Math.max(1, Math.ceil(res.total / perPage));
+            if (currentPage > maxPage && res.total > 0) {
+                reload(maxPage);
+            }
         });
     }
 
+    function reloadAfterDelete() {
+        const rowCount = $('#tableWrap tbody tr').not(':has(.empty-state)').length;
+        if (rowCount <= 1 && currentPage > 1) {
+            currentPage = currentPage - 1;
+        }
+        reload(currentPage);
+    }
+
     let t;
-    $('#search').on('input', function () { clearTimeout(t); t = setTimeout(() => reload(), 350); });
-    $('#category_filter, #per_page').on('change', () => reload());
+    $('#search').on('input', function () { clearTimeout(t); t = setTimeout(() => reload(1), 350); });
+    $('#category_filter, #per_page').on('change', () => reload(1));
 
     $(document).on('click', '#paginationWrap a', function (e) {
         e.preventDefault();
@@ -323,7 +363,22 @@
             title: 'Delete this frame record?',
             text: 'All its frame images and thumbnails will be removed.',
             icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Yes, delete it'
-        }).then((r) => { if (r.isConfirmed) form.submit(); });
+        }).then((r) => {
+            if (!r.isConfirmed) return;
+            $.ajax({
+                url: form.action,
+                method: 'POST',
+                data: new FormData(form),
+                processData: false,
+                contentType: false,
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                success: function (res) {
+                    Swal.fire({ icon: 'success', title: 'Deleted!', text: res.message || 'Frame record deleted.', timer: 1800, showConfirmButton: false });
+                    reloadAfterDelete();
+                },
+                error: function (xhr) { window.showAjaxError(xhr); }
+            });
+        });
     });
 })();
 </script>

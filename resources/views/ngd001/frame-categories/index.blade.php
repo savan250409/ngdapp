@@ -70,6 +70,7 @@
                     </button>
                     <form class="d-inline form-delete" method="POST" action="{{ route('frame-categories.destroy', $cat->id) }}">
                         @csrf @method('DELETE')
+                        <input type="hidden" name="page" class="input-current-page" value="{{ $categories->currentPage() }}">
                         <button type="submit" class="btn btn-sm btn-light border btn-icon text-danger" title="Delete"><i class="bi bi-trash"></i></button>
                     </form>
                 </td>
@@ -148,6 +149,7 @@
         <form id="categoryForm" method="POST" enctype="multipart/form-data" action="{{ route('frame-categories.store') }}">
             @csrf
             <input type="hidden" name="_method" id="formMethod" value="POST">
+            <input type="hidden" name="page" id="categoryFormPage" value="{{ $categories->currentPage() }}">
             <div class="modal-content" style="border:none;border-radius:14px;">
                 <div class="modal-header border-0 pb-0">
                     <h5 class="modal-title fw-semibold" id="modalTitle">Add Category</h5>
@@ -261,23 +263,63 @@
         }).always(function () { btn.disabled = false; });
     });
 
+    let currentPage = parseInt(new URL(window.location.href).searchParams.get('page'), 10) || {{ $categories->currentPage() }};
+
+    function syncUrl(page) {
+        const url = new URL(window.location.href);
+        if (page > 1) {
+            url.searchParams.set('page', page);
+        } else {
+            url.searchParams.delete('page');
+        }
+        const search = $('#search').val();
+        const status = $('#status_filter').val();
+        const perPage = $('#per_page').val();
+        if (search) url.searchParams.set('search', search); else url.searchParams.delete('search');
+        if (status !== '' && status !== null && status !== undefined) url.searchParams.set('status_filter', status); else url.searchParams.delete('status_filter');
+        if (perPage && perPage != 10) url.searchParams.set('per_page', perPage); else url.searchParams.delete('per_page');
+        window.history.replaceState({}, '', url.toString());
+    }
+
     function reload(page) {
+        if (typeof page !== 'undefined' && page !== null) {
+            currentPage = parseInt(page, 10) || 1;
+        }
         const params = {
             search: $('#search').val(),
             status_filter: $('#status_filter').val(),
             per_page: $('#per_page').val(),
         };
-        if (page) params.page = page;
+        if (currentPage > 1) params.page = currentPage;
+
+        syncUrl(currentPage);
+
         $.get(listUrl, params, function (res) {
             $('#tableWrap').html(res.table);
             $('#paginationWrap').html(res.pagination);
             $('#totalCount').text(res.total);
+            $('.input-current-page').val(currentPage);
+            $('#categoryFormPage').val(currentPage);
+
+            const perPage = parseInt($('#per_page').val(), 10) || 10;
+            const maxPage = Math.max(1, Math.ceil(res.total / perPage));
+            if (currentPage > maxPage && res.total > 0) {
+                reload(maxPage);
+            }
         });
     }
 
+    function reloadAfterDelete() {
+        const rowCount = $('#tableWrap tbody tr').not(':has(.empty-state)').length;
+        if (rowCount <= 1 && currentPage > 1) {
+            currentPage = currentPage - 1;
+        }
+        reload(currentPage);
+    }
+
     let t;
-    $('#search').on('input', function () { clearTimeout(t); t = setTimeout(() => reload(), 350); });
-    $('#status_filter, #per_page').on('change', () => reload());
+    $('#search').on('input', function () { clearTimeout(t); t = setTimeout(() => reload(1), 350); });
+    $('#status_filter, #per_page').on('change', () => reload(1));
 
     // AJAX pagination links
     $(document).on('click', '#paginationWrap a', function (e) {
@@ -296,6 +338,7 @@
         $('#category_name').prop('readonly', false);
         $('#currentThumb').addClass('d-none').attr('src', '');
         $('#statusSwitch').prop('checked', true);
+        $('#categoryFormPage').val(currentPage);
         new bootstrap.Modal('#categoryModal').show();
     });
 
@@ -309,6 +352,7 @@
         $('#modalTitle').text('Edit Category');
         $('#category_name').val(d.name);
         $('#statusSwitch').prop('checked', String(d.status) === '1');
+        $('#categoryFormPage').val(currentPage);
         if (d.thumb) {
             $('#currentThumb').removeClass('d-none').attr('src', d.thumb);
         } else {
@@ -332,7 +376,7 @@
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             success: function (res) {
                 bootstrap.Modal.getInstance(document.getElementById('categoryModal'))?.hide();
-                reload();
+                reload(currentPage);
                 Toast.fire({ icon: 'success', title: res.message || 'Saved' });
             },
             error: function (xhr) { window.showAjaxError(xhr); },
@@ -385,7 +429,7 @@
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
                 success: function (res) {
                     Swal.fire({ icon: 'success', title: 'Deleted!', text: res.message || 'Category deleted.', timer: 1800, showConfirmButton: false });
-                    reload();
+                    reloadAfterDelete();
                 },
                 error: function (xhr) { window.showAjaxError(xhr); }
             });
